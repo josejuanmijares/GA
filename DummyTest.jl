@@ -147,19 +147,22 @@ module DummyTest
 				for k=1:Npairs
 					pop_ind1 = parent1_indexes[k]
 					pop_ind2 = parent2_indexes[k]
-					p1 = this.ga_pops[ pop_ind1 ].x
-					p2 = this.ga_pops[ pop_ind2 ].x
+					p1 = Float32[0.10714543f0,0.24455142f0,0.54020226f0,0.41449094f0,0.5355526f0,0.3036313f0,0.77046824f0,0.7646837f0]
+					 #this.ga_pops[ pop_ind1 ].x
+					p2 = Float32[0.27402735f0,0.9973304f0,0.6563084f0,0.2529049f0,0.13000119f0,0.53481257f0,0.0069544315f0,0.8772366f0]
+					#this.ga_pops[ pop_ind2 ].x
 					
 					ind1 = sortperm(p1)
 					ind2 = sortperm(p2)
 					
-					cut_A = rand([1:(length(p1)-1);])
-					cut_B = rand([(cut_A+1):length(p1);])
+					cut_A = 6 #rand([1:(length(p1)-1);])
+					cut_B = 7 #rand([(cut_A+1):length(p1);])
 					
 					child1 = zeros(Float32,size(p1))
 					child2 = zeros(Float32,size(p1))
 					
-					mask = ones(Int64,size(p1))
+					mask1 = ones(Int64,size(p1))
+					mask2 = ones(Int64,size(p1))
 					
 					println("cut_A = $cut_A")
 					println("cut_B = $cut_B")
@@ -168,22 +171,44 @@ module DummyTest
 					println("p2 = $p2")
 					
 					child1[cut_A:cut_B] = p1[cut_A:cut_B]
-					println("##### child1 = $child1")
-					mask[cut_A:cut_B] = 0
-					kval = 1
-					for k0 = 1:length(p1)
-						if ( ind1[k0] < cut_A )||( ind1[k0]>cut_B)
-							val = p2[ ind2[k0] ]
-							while ( mask[kval] == 0 )
-								kval +=1
-							end
-							child1[ kval ] = val
-							kval+=1
-						end
- 					end	
+					child2[cut_A:cut_B] = p2[cut_A:cut_B]
 					
-
 					println("##### child1 = $child1")
+					println("##### child2 = $child2")
+					
+					temp1 = []
+					temp2 = []
+					for k0=1:length(mask1)
+						if (ind1[k0]>= cut_A) && (ind1[k0]<=cut_B)
+							mask1[ind2[k0]]= 0
+						end
+						if (ind2[k0]>= cut_A) && (ind2[k0]<=cut_B)
+							mask2[ind1[k0]]= 0
+						end
+					end
+					for k0 = 1:length(mask1)
+						if mask1[k0]==1
+							temp1 = [temp1; p2[k0]]
+						end
+						if mask2[k0]==1
+							temp2 = [temp2; p1[k0]]
+						end
+					end
+					
+					k_ind = 1 
+					for k0 = 1: (cut_A-1)
+						child1[k0] = temp1[k_ind]
+						child2[k0] = temp2[k_ind]
+						k_ind +=1
+					end
+					for k0 = (cut_B+1):length(p1)
+						child1[k0] = temp1[k_ind]
+						child2[k0] = temp2[k_ind]
+						k_ind +=1
+					end
+						
+					println("##### child1 = $child1")
+					println("##### child2 = $child2")
 
 					error("hola")
 				end
