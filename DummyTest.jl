@@ -153,13 +153,38 @@ module DummyTest
 					ind1 = sortperm(p1)
 					ind2 = sortperm(p2)
 					
-					cut_A = rand([1:(length(p1)-1);],1)
-					cut_B = rand([(cut_A+1):length(p1);],1)
+					cut_A = rand([1:(length(p1)-1);])
+					cut_B = rand([(cut_A+1):length(p1);])
 					
-					println("cut_p1 = $")
+					child1 = zeros(Float32,size(p1))
+					child2 = zeros(Float32,size(p1))
+					
+					mask = ones(Int64,size(p1))
+					
+					println("cut_A = $cut_A")
+					println("cut_B = $cut_B")
 					
 					println("p1 = $p1")
 					println("p2 = $p2")
+					
+					child1[cut_A:cut_B] = p1[cut_A:cut_B]
+					println("##### child1 = $child1")
+					mask[cut_A:cut_B] = 0
+					kval = 1
+					for k0 = 1:length(p1)
+						if ( ind1[k0] < cut_A )||( ind1[k0]>cut_B)
+							val = p2[ ind2[k0] ]
+							while ( mask[kval] == 0 )
+								kval +=1
+							end
+							child1[ kval ] = val
+							kval+=1
+						end
+ 					end	
+					
+
+					println("##### child1 = $child1")
+
 					error("hola")
 				end
 				
