@@ -153,9 +153,10 @@ module DummyTest
 					ind1 = sortperm(p1)
 					ind2 = sortperm(p2)
 					
-					cut_point1 = rand([1:(length(p1)-1);],1)
-					cut_point2 = rand([cut_point1:length(p1);],1)
+					cut_A = rand([1:(length(p1)-1);],1)
+					cut_B = rand([(cut_A+1):length(p1);],1)
 					
+					println("cut_p1 = $")
 					
 					println("p1 = $p1")
 					println("p2 = $p2")
