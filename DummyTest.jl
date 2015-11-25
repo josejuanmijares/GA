@@ -48,6 +48,7 @@ module DummyTest
 		random_selection	::Function
 		topN_selection		::Function
 		orderedCrossOver	::Function
+		exchangeMutation	::Function
 		
 		function GAmodels(N::Int64, M::Int64, Nbins::Int64)
 			this = new()
@@ -226,6 +227,7 @@ module DummyTest
 						this.ga_pops[ pop_ind1 ].x = p1
 						this.ga_pops[ pop_ind2 ].x = p2
 					end
+				end
 			end
 				
 			return this
