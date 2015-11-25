@@ -148,29 +148,19 @@ module DummyTest
 					pop_ind1 = parent1_indexes[k]
 					pop_ind2 = parent2_indexes[k]
 					p1 = this.ga_pops[ pop_ind1 ].x 
-					#Float32[0.10714543f0,0.24455142f0,0.54020226f0,0.41449094f0,0.5355526f0,0.3036313f0,0.77046824f0,0.7646837f0]
-					
 					p2 = this.ga_pops[ pop_ind2 ].x
-					#Float32[0.27402735f0,0.9973304f0,0.6563084f0,0.2529049f0,0.13000119f0,0.53481257f0,0.0069544315f0,0.8772366f0]
-					
-					
+
 					ind1 = sortperm(p1)
 					ind2 = sortperm(p2)
-					
+
 					cut_A = rand([1:(length(p1)-1);])
-					#6 #
 					cut_B = rand([(cut_A+1):length(p1);])
-					#7 #
+
 					child1 = zeros(Float32,size(p1))
 					child2 = zeros(Float32,size(p1))
 					
 					mask1 = ones(Int64,size(p1))
 					mask2 = ones(Int64,size(p1))
-					
-					#println("cut_A = $cut_A cut_B = $cut_B")
-					
-					#println("p1 = $p1")
-					#println("p2 = $p2")
 					
 					child1[cut_A:cut_B] = p1[cut_A:cut_B]
 					child2[cut_A:cut_B] = p2[cut_A:cut_B]
@@ -205,16 +195,39 @@ module DummyTest
 						child2[k0] = temp2[k_ind]
 						k_ind +=1
 					end
-						
-					#println("##### child1 = $child1")
-					#println("##### child2 = $child2")
+
 					this.ga_pops[ pop_ind1 ].x = child1
 					this.ga_pops[ pop_ind2 ].x = child2
 				end
 				
 			end
 			
-			
+			this.exchangeMutation = function(parent1_indexes::Array{Int64,1},parent2_indexes::Array{Int64,1}, prob_mutation::Float64)
+				Npairs = length(parent1_indexes)
+				for k=1:Npairs
+					if rand() < prob_mutation
+						pop_ind1 = parent1_indexes[k]
+						pop_ind2 = parent2_indexes[k]
+						p1 = this.ga_pops[ pop_ind1 ].x 
+						p2 = this.ga_pops[ pop_ind2 ].x
+						
+						A = rand([1:(length(p1)-1);])
+						B = rand([(A+1):length(p1);])
+						temp = p1[A]
+						p1[A] = p1[B]
+						p1[B] =temp
+						
+						A = rand([1:(length(p1)-1);])
+						B = rand([(A+1):length(p1);])
+						temp = p2[A]
+						p2[A] = p2[B]
+						p2[B] =temp
+						
+						this.ga_pops[ pop_ind1 ].x = p1
+						this.ga_pops[ pop_ind2 ].x = p2
+					end
+			end
+				
 			return this
 		end
 		
