@@ -23,8 +23,8 @@ module DummyTest
 			this.x = EHEfast1(rand(Float32,N),Nbins)
 			this.N = N
 			this.score = 0.0f0
-			this.q1 = zeros(Float32,this.N)
-			this.q2 = zeros(Float32,this.N)
+			this.q1 = zeros(Float32,this.N+1)
+			this.q2 = zeros(Float32,this.N+1)
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
@@ -35,8 +35,8 @@ module DummyTest
 			this.x = x
 			this.N = length(x)
 			this.score = 0.0f0
-			this.q1 = zeros(Float32,this.N)
-			this.q2 = zeros(Float32,this.N)
+			this.q1 = zeros(Float32,this.N+1)
+			this.q2 = zeros(Float32,this.N+1)
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
@@ -65,6 +65,7 @@ module DummyTest
 		topN_selection		::Function
 		orderedCrossOver	::Function
 		exchangeMutation	::Function
+		printAll					::Function
 		
 		function GAmodels(N::Int64, M::Int64, Nbins::Int64)
 			this = new()
@@ -72,8 +73,8 @@ module DummyTest
 			this.N = N																							# initialization
 			this.ga_pops = [population(M, Nbins) for i=1:N]
 			this.NFreqBins = N
-			this.q1 = zeros(Float32,this.NFreqBins)
-			this.q2 = zeros(Float32,this.NFreqBins)
+			this.q1 = zeros(Float32,this.NFreqBins+1)
+			this.q2 = zeros(Float32,this.NFreqBins+1)
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
@@ -108,6 +109,7 @@ module DummyTest
 				this.M1 = m1_best; this.M2 = m2_best; this.S = s_best;
 				return kind
 			end
+			
 			this.evaluateAll = function()
 				psd = zeros(Float32,this.NFreqBins+1)
 				for k = 1:N
@@ -117,13 +119,16 @@ module DummyTest
 					this.ga_pops[k].score = s
 				end
 			end
+			
 			this.evaluate = function(k::Int64)
 				psd = zeros(Float32,this.NFreqBins+1)
-				q1 = []
-				q2 = []
+				q1 = zeros(Float32,this.NFreqBins+1)
+				q2 = zeros(Float32,this.NFreqBins+1)
 				M1 = 0
 				M2 = 0
+				Nout = 0
 				data = this.ga_pops[k].x
+				
 				psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
 				s, Nout, M1, M2= online_variance(psd, this.NSamples, this.M1, this.M2)
 				
@@ -135,6 +140,7 @@ module DummyTest
 
 				this.ga_pops[k].score = s
 			end
+			
 			this.random_selection = function(Npairs::Int64)
 				parent1_indexes = zeros(Npairs)
 				parent2_indexes = zeros(Npairs)
@@ -256,7 +262,28 @@ module DummyTest
 					end
 				end
 			end
-				
+			
+			this.printAll = function()
+
+				println("-----------------------------------------------------------------------------------------------------------------------------------------------")
+				println(" ::Int64               # Number of populations        N          =$(this.N)")
+				println(" ::Array{Float32,1}    # q1 values (best)             q1         =$(this.q1)")
+				println(" ::Array{Float32,1}    # q2 values (best)             q2         =$(this.q2)")
+				println(" ::UInt64              # Groetzel FFT nfreq bins      NFreqBins  =$(this.NFreqBins)")
+				println(" ::Float32             # mean value                   M1         =$(this.M1)")
+				println(" ::Float32             # variance*(N-1) value         M2         =$(this.M2)")
+				println(" ::Int64               # total number of samples      NSamples   =$(this.NSamples)")
+				println(" ::Float32             # st dev (best) population     S          =$(this.S)")
+				println("-----------------------------------------------------------------------------------------------------------------------------------------------")
+
+
+				#for k=1:this.N	
+				#ga_pops # array of populations
+
+
+			
+			end
+			
 			return this
 		end
 		
