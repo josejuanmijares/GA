@@ -12,11 +12,22 @@ module DummyTest
 		x									::Array{Float32,1}											# population elements
 		N									::Int64																	# length of the population
 		score							::Float32																# fitness
+		q1								::Array{Float32,1}											# q1 values
+		q2								::Array{Float32,1}											# q2 values
+		M1								::Float32																# mean value
+		M2								::Float32																# variance*(N-1) value
+		NSamples					::Int64																	# total number of samples
+		
 		function population(N::Int64, Nbins::Int64)
 			this = new()
 			this.x = EHEfast1(rand(Float32,N),Nbins)
 			this.N = N
 			this.score = 0.0f0
+			this.q1 = zeros(Float32,this.N)
+			this.q2 = zeros(Float32,this.N)
+			this.M1 =0.0f0
+			this.M2 =0.0f0
+			this.NSamples = 0
 			return this
 		end
 		function population(x::Array{Float32,1})
@@ -24,6 +35,11 @@ module DummyTest
 			this.x = x
 			this.N = length(x)
 			this.score = 0.0f0
+			this.q1 = zeros(Float32,this.N)
+			this.q2 = zeros(Float32,this.N)
+			this.M1 =0.0f0
+			this.M2 =0.0f0
+			this.NSamples = 0
 			return this
 		end
 		function population()
@@ -55,9 +71,9 @@ module DummyTest
 			
 			this.N = N																							# initialization
 			this.ga_pops = [population(M, Nbins) for i=1:N]
-			this.NFreqBins = 16
-			this.q1 = zeros(Float32,this.NFreqBins+1)
-			this.q2 = zeros(Float32,this.NFreqBins+1)
+			this.NFreqBins = N
+			this.q1 = zeros(Float32,this.NFreqBins)
+			this.q2 = zeros(Float32,this.NFreqBins)
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
@@ -103,9 +119,20 @@ module DummyTest
 			end
 			this.evaluate = function(k::Int64)
 				psd = zeros(Float32,this.NFreqBins+1)
+				q1 = []
+				q2 = []
+				M1 = 0
+				M2 = 0
 				data = this.ga_pops[k].x
-				psd, _, _ = goertzel(data, this.NFreqBins, this.q1, this.q2)
-				s, _, _, _= online_variance(psd, this.NSamples, this.M1, this.M2)
+				psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
+				s, Nout, M1, M2= online_variance(psd, this.NSamples, this.M1, this.M2)
+				
+				this.ga_pops[k].q1 = q1
+				this.ga_pops[k].q2 = q2
+				this.ga_pops[k].M1 = M1
+				this.ga_pops[k].q1 = q1
+				this.ga_pops[k].NSamples = Nout
+
 				this.ga_pops[k].score = s
 			end
 			this.random_selection = function(Npairs::Int64)
