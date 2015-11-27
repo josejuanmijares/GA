@@ -265,21 +265,31 @@ module DummyTest
 			
 			this.printAll = function()
 
-				println("-----------------------------------------------------------------------------------------------------------------------------------------------")
-				println(" ::Int64               # Number of populations        N          =$(this.N)")
-				println(" ::Array{Float32,1}    # q1 values (best)             q1         =$(this.q1)")
-				println(" ::Array{Float32,1}    # q2 values (best)             q2         =$(this.q2)")
-				println(" ::UInt64              # Groetzel FFT nfreq bins      NFreqBins  =$(this.NFreqBins)")
-				println(" ::Float32             # mean value                   M1         =$(this.M1)")
-				println(" ::Float32             # variance*(N-1) value         M2         =$(this.M2)")
-				println(" ::Int64               # total number of samples      NSamples   =$(this.NSamples)")
-				println(" ::Float32             # st dev (best) population     S          =$(this.S)")
-				println("-----------------------------------------------------------------------------------------------------------------------------------------------")
-
-
-				#for k=1:this.N	
-				#ga_pops # array of populations
-
+				println("#################################################################################################################################################")
+				println(" ::Int64               # Number of populations       |          N = $(this.N)")
+				println(" ::Array{Float32,1}    # q1 values (best)            |         q1 = $(this.q1)")
+				println(" ::Array{Float32,1}    # q2 values (best)            |         q2 = $(this.q2)")
+				println(" ::UInt64              # Groetzel FFT nfreq bins     |  NFreqBins = $(this.NFreqBins)")
+				println(" ::Float32             # mean value                  |         M1 = $(this.M1)")
+				println(" ::Float32             # variance*(N-1) value        |         M2 = $(this.M2)")
+				println(" ::Int64               # total number of samples     |   NSamples = $(this.NSamples)")
+				println(" ::Float32             # st dev (best) population    |          S = $(this.S)")
+				println("#################################################################################################################################################")
+				println(" ")
+				println("#################################################################################################################################################")
+				
+				for k=1:this.N
+					println(" ::Int64               # population ID               |          k = $(k)")
+					println(" ::Array{Float32,1}    # poulation elements          |         q1 = $(this.ga_pops[k].x)")
+					println(" ::Int64               # length of the population    |          N = $(this.ga_pops[k].N)")
+					println(" ::Float32             # population fitness value    |      score = $(this.ga_pops[k].score)")
+					println(" ::Array{Float32,1}    # q1 values (population)      |         q1 = $(this.ga_pops[k].q1)")
+					println(" ::Array{Float32,1}    # q2 values (population)      |         q2 = $(this.ga_pops[k].q2)")
+					println(" ::Float32             # mean value (pop.)           |         M1 = $(this.ga_pops[k].M1)")
+					println(" ::Float32             # variance*(N-1) value(pop)   |         M2 = $(this.ga_pops[k].M2)")
+					println(" ::Int64               # total number of samples     |   NSamples = $(this.ga_pops[k].NSamples)")
+					println("-----------------------------------------------------------------------------------------------------------------------------------------------")
+				end
 
 			
 			end
