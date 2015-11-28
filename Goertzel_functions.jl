@@ -3,8 +3,8 @@ module Goertzel_functions
 	function goertzel(data, Nbins, q1o, q2o)
 		numSamples = length(data)
 		psd = zeros(Nbins+1)
-		q1out = zeros(Nbins+1)
-		q2out = zeros(Nbins+1)
+		q1out = copy(q1o) #zeros(Nbins+1)
+		q2out = copy(q2o) #zeros(Nbins+1)
 		for k=0:Nbins	
 			omega = 2.0 * pi * float( float(k)/float(2*(Nbins)) )
 			coeff = 2.0 * float(cos(omega))
