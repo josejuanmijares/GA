@@ -38,9 +38,26 @@ end
 function EHEfast2(xin,Nbins,typein)
 	ind = sortperm(xin)
 	l = length(xin)
-	binsize = sqrt(l)					#round(l/Nbins);		
-	offset = (1/(l/binsize))* floor( (ind-1)/binsize)
+	ind2 = zeros(Int64,length(ind))
+	[ind2[ind[k]] = k for k=1:length(ind)]
+	l = length(xin)
+	binsize = sqrt(l)
+	ratio = l/binsize
+	offset = (1/binsize)* floor( (ind2-1)/ratio)
 	xout = mod(xin,1/binsize) + offset
-	
+	xout = convert(Arra{typein,1},xout)
+	return xout
+end
+
+function EHEfast3(xin,Nbins,typein)
+	ind = sortperm(xin)
+	ind2 = zeros(Int64,length(ind))
+	[ind2[ind[k]] = k for k=1:length(ind)]
+	l = length(xin)
+	binsize = ceil(log2(l) +1)
+	ratio = l/binsize
+	offset = (1/binsize)* floor( (ind2-1)/ratio)
+	xout = mod(xin,1/binsize) + offset
+	xout = convert(Arra{typein,1},xout)
 	return xout
 end
