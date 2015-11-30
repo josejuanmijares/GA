@@ -34,3 +34,13 @@ function EHEfast1(xin,Nbins,typein)
 	xout = (xin & MSB) | (xin & LSB)
 	return xout
 end
+
+function EHEfast2(xin,Nbins,typein)
+	ind = sortperm(xin)
+	l = length(xin)
+	binsize = sqrt(l)					#round(l/Nbins);		
+	offset = (1/(l/binsize))* floor( (ind-1)/binsize)
+	xout = mod(xin,1/binsize) + offset
+	
+	return xout
+end
