@@ -21,7 +21,7 @@ module DummyTest
 		
 		function population(N::Int64, Nbins::Int64)
 			this = new()
-			this.x = EHEfast1(rand(Float32,N),Nbins)
+			this.x = EHEfast3(rand(Float32,N),Nbins,Float32)
 			this.N = N
 			this.score = 0.0f0
 			this.q1 = zeros(Float32,this.N+1)
