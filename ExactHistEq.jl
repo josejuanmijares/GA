@@ -1,6 +1,6 @@
 module ExactHistEq
 
-export EHE, EHEfast0, EHEfast1
+export EHE, EHEfast0, EHEfast1, EHEfast2, EHEfast3
 
 	function EHE(xin, Nbins)
 		l = length(xin)
@@ -93,11 +93,8 @@ export EHE, EHEfast0, EHEfast1
 		ratio = l/binsize
 		offset = (1/binsize)* floor( (ind2-1)/ratio)
 		xout = mod(xin,1/binsize) + offset
-		xout = convert(Arra{typein,1},xout)
+		xout = convert(Array{typein,1},xout)
 		return xout
 	end
-	
-	
-	
 	
 end

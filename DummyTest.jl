@@ -5,7 +5,7 @@ module DummyTest
 
 	export population, GAmodels
 
-	import ExactHistEq.EHEfast1
+	import ExactHistEq.EHEfast3
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
 
 	type population
@@ -434,13 +434,3 @@ end
 
 
 
-# type GAmodel
-#     initial_pop_size::Int
-#     gen_num::Int
-#
-#     population::Array
-#
-#     rng::AbstractRNG
-#
-#     GAmodel() = new(0, 1, Any[], EntityData[], EntityData[], MersenneTwister(time_ns()), nothing)
-# end
