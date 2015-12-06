@@ -74,14 +74,14 @@ module DummyTest
 		elitistOrderedCrossOver		::Function
 		elitistExchangeMutation		::Function
 		
-		function GAmodels(N::Int64, M::Int64, Nbins::Int64)
+		function GAmodels(N::Int64, M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
 			this = new()
 			
 			this.N = N																							# initialization
 			this.ga_pops = [population(M, Nbins) for i=1:N]
 			this.NFreqBins = N
-			this.q1 = zeros(Float32,this.NFreqBins+1)
-			this.q2 = zeros(Float32,this.NFreqBins+1)
+			this.q1 = q1 #zeros(Float32,this.NFreqBins+1)
+			this.q2 = q2 #zeros(Float32,this.NFreqBins+1)
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
@@ -414,11 +414,11 @@ module DummyTest
 		end
 		
 		function GAmodels(N::Int64)
-			return GAmodels(N,128,16)
+			return GAmodels(N,128,16, zeros(Float32,N+1),zeros(Float32,N+1))
 		end
 		
 		function GAmodels()
-			return GAmodels(16,128,16)
+			return GAmodels(16,128,16,zeros(Float32,16+1),zeros(Float32,16+1))
 		end
 		
 	end	
