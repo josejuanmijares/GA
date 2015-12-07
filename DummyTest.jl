@@ -63,6 +63,7 @@ module DummyTest
 		
 		getBest										::Function
 		evaluateAll								::Function
+		par_evaluateAll						::Function
 		evaluate									::Function
 		randomSelection						::Function
 		topN_selection						::Function
@@ -122,6 +123,17 @@ module DummyTest
 					this.evaluate(k)
 				end
 			end
+			
+			this.par_evaluateAll = function()
+				pmap(this.evaluate,[1:this.N;])
+			end
+			
+#			this.evaluateFFT = function(k::Int64)
+# 				data = this.ga_pops[k].x
+# 				psd = real(fft(data).*conj(fft(data)))/length(data)
+#
+# 			end
+			
 			
 			this.evaluate = function(k::Int64)
 				psd = zeros(Float32,this.NFreqBins+1)
@@ -411,6 +423,10 @@ module DummyTest
 			end
 			
 			return this
+		end
+		
+		function GAmodels(N::Int64, M::Int64, Nbins::Int64)
+			return GAmodels(N,M,Nbins, zeros(Float32,N+1),zeros(Float32,N+1))
 		end
 		
 		function GAmodels(N::Int64)

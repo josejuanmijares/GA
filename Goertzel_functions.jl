@@ -16,7 +16,7 @@ module Goertzel_functions
 				q2 = q1
 				q1 = q0
 			end
-			psd[k+1] = (q1^2.0) + (q2^2.0) - (q1 * q2 * coeff)
+			psd[k+1] = ( (q1^2.0) + (q2^2.0) - (q1 * q2 * coeff) )/numSamples
 			q1out[k+1] = q1
 			q2out[k+1] = q2
 		end
