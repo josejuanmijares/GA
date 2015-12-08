@@ -179,15 +179,15 @@ module DummyTest
 				list = [1:this.N;]
 
 				parent1_indexes[1] = rand(list)
-				list = symdiff(list,parent1_indexes)
+				list = symdiff(list, parent1_indexes)
 				parent2_indexes[1] = rand(list)
-				list = symdiff(list,union(parent1_indexes,parent2_indexes))
+				list = setdiff(list,union(parent1_indexes,parent2_indexes))
 				
 				for k=2:Npairs
 					parent1_indexes[k] = rand(list)
-					list = symdiff(list,union(parent1_indexes,parent2_indexes))
+					list = setdiff(list,union(parent1_indexes,parent2_indexes))
 					parent2_indexes[k] = rand(list)
-					list = symdiff(list,union(parent1_indexes,parent2_indexes))
+					list = setdiff(list,union(parent1_indexes,parent2_indexes))
 				end
 				
 				return convert(Array{Int64,1},parent1_indexes),convert(Array{Int64,1},parent2_indexes)
