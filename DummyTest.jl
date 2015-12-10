@@ -3,7 +3,7 @@
 
 module DummyTest
 
-	export population, GAmodels
+	export population, GAmodels, GAmodel
 
 	import ExactHistEq.EHEfast3
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
@@ -496,11 +496,11 @@ module DummyTest
 					
 						# replace only if they are better than the parents
 						
-						println("eval p1=$(this.evaluate(p1)) > $(this.evaluate(child1)) =child1 ?")
+						#println("eval p1=$(this.evaluate(p1)) > $(this.evaluate(child1)) =child1 ?")
 						if this.evaluate(p1) > this.evaluate(child1)
 							this.ga_pops[ pop_ind1 ].x = child1
 						end
-						println("eval p2=$(this.evaluate(p2)) > $(this.evaluate(child2)) =child2 ?")
+						#println("eval p2=$(this.evaluate(p2)) > $(this.evaluate(child2)) =child2 ?")
 						if this.evaluate(p2) > this.evaluate(child2)
 							this.ga_pops[ pop_ind2 ].x = child2
 						end
@@ -584,8 +584,117 @@ module DummyTest
 		
 	end	
 	
-	function evaluateGA(g::GAmodels)
-		## return best population
+	
+	type GAmodel
+		ga_pop												::population										# populations object
+		#q1														::Array{Float32,1}							# q1 values
+		#q2														::Array{Float32,1}							# q2 values
+		#NFreqBins											::UInt64												# number of frequency bins for Groetzel FFT
+		#M1														::Float32												# mean value
+		#M2														::Float32												# variance*(N-1) value
+		NSamples											::Int64													# total number of samples
+		S															::Float32												# standard deviation from best population
+				#
+		getBest												::Function
+		# evaluateAll										::Function
+		# par_evaluateAll								::Function
+		evaluate											::Function
+		# randomSelection								::Function
+		# topN_selection								::Function
+		# orderedCrossOver							::Function
+		# exchangeMutation							::Function
+		# printAll											::Function
+		# updateBest										::Function
+		# elitistSelection							::Function
+		# elitistOrderedCrossOver				::Function
+		# elitistExchangeMutation				::Function
+		# groupElitistOrderedCrossOver	::Function
+		# groupElitistExchangeMutation	::Function
+
+		function GAmodel(M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
+			this = new()
+																																# initialization
+			this.ga_pop = population(M, Nbins) 
+			#this.NFreqBins = 
+			#this.q1 = q1 #zeros(Float32,this.NFreqBins+1)
+			#this.q2 = q2 #zeros(Float32,this.NFreqBins+1)
+			#this.M1 =0.0f0
+			#this.M2 =0.0f0
+			this.NSamples = 0
+
+			######################################################### functions
+		
+			function evaluate(data::Array{Float32,1})
+				N = length(data)
+				psd = zeros(Float32,Int64(N/2)+1)
+				#q1 = zeros(Float32,this.NFreqBins+1)
+				#q2 = zeros(Float32,this.NFreqBins+1)
+				#M1 = 0
+				#M2 = 0
+				#Nout = 0
+				#psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
+				psd = (fft(data)[1:((N/2) +1)])
+				psd = (psd.*conj(psd))/length(data)
+				s = std(psd)
+				return s
+			end
+			function evaluate()
+				N = length(this.ga_pop.x)
+				psd = zeros(Float32,Int64(N/2)+1)
+				#q1 = zeros(Float32,this.NFreqBins+1)
+				#q2 = zeros(Float32,this.NFreqBins+1)
+				#M1 = 0
+				#M2 = 0
+				#Nout = 0
+				data = this.ga_pop.x
+				psd = (fft(data)[1:((N/2) +1)])
+				psd = (psd.*conj(psd))/length(data)
+				
+				s = std(psd)
+				#psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
+				#M1 = mean(psd)
+				#M2 = var(psd)
+				#s = std(psd)
+				#this.ga_pop.q1 = q1
+				#this.ga_pop.q2 = q2
+				#this.ga_pop.M1 = M1
+				#this.ga_pop.M2 = M2
+				#this.ga_pop.NSamples = Nout
+				this.ga_pop.score = s
+				return s
+			end
+			this.evaluate = evaluate
+			this.getBest = function(dataA::Array{Float32,1}, dataB::Array{Float32,1})
+			
+				if this.evaluate(dataA) > this.evaluate(dataB)
+					return dataB
+				else
+					return dataA
+				end
+				
+			end
+			
+			this.tournamentSelection = function(k::Int64)
+				
+			
+			
+			end
+			
+			return this
+		end
+		
+		function GAmodel(M::Int64, Nbins::Int64)
+			return GAmodel(M,Nbins, zeros(Float32,M+1),zeros(Float32,M+1))
+		end
+		
+		function GAmodel()
+			return GAmodel(128,16,zeros(Float32,128+1),zeros(Float32,128+1))
+		end
+		
+
+	
+	
+		
 	end
 	
 
