@@ -17,10 +17,13 @@ module DummyTest
 		M1												::Float32												# mean value
 		M2												::Float32												# variance*(N-1) value
 		NSamples									::Int64													# total number of samples
-
+		Nbins											::Int64
+		
+		repopulate								::Function
 		
 		function population(N::Int64, Nbins::Int64)
 			this = new()
+			this.Nbins = Nbins
 			this.x = EHEfast3(rand(Float32,N),Nbins,Float32)
 			this.N = N
 			this.score = 0.0f0
@@ -29,21 +32,26 @@ module DummyTest
 			this.M1 =0.0f0
 			this.M2 =0.0f0
 			this.NSamples = 0
+			
+			this.repopulate = function( )
+				this.x = EHEfast3(rand(Float32,this.N), this.Nbins, Float32)
+			end
+			
 			return this
 		end
-		function population(x::Array{Float32,1})
-			this = new()
-			this.x = x
-			this.N = length(x)
-
-			this.score = 0.0f0
-			this.q1 = zeros(Float32,this.N+1)
-			this.q2 = zeros(Float32,this.N+1)
-			this.M1 =0.0f0
-			this.M2 =0.0f0
-			this.NSamples = 0
-			return this
-		end
+		# function population(x::Array{Float32,1})
+		# 	this = new()
+		# 	this.x = x
+		# 	this.N = length(x)
+		#
+		# 	this.score = 0.0f0
+		# 	this.q1 = zeros(Float32,this.N+1)
+		# 	this.q2 = zeros(Float32,this.N+1)
+		# 	this.M1 =0.0f0
+		# 	this.M2 =0.0f0
+		# 	this.NSamples = 0
+		# 	return this
+		# end
 		function population()
 			return population(128,16)
 		end
@@ -590,26 +598,14 @@ module DummyTest
 		N															::Int64													# Number of populations
 		NSamples											::Int64													# total number of samples
 		S															::Float32												# standard deviation from best population
+		bestId												::Int64
 
+		repopulateAll									::Function
 		getBest												::Function
 		evaluate											::Function
 		tournamentSelection						::Function
 		orderedCrossOver 							::Function
 		exchangeMutation							::Function
-		
-		# evaluateAll										::Function
-		# par_evaluateAll								::Function
-		# randomSelection								::Function
-		# topN_selection								::Function
-		# orderedCrossOver							::Function
-		# exchangeMutation							::Function
-		# printAll											::Function
-		# updateBest										::Function
-		# elitistSelection							::Function
-		# elitistOrderedCrossOver				::Function
-		# elitistExchangeMutation				::Function
-		# groupElitistOrderedCrossOver	::Function
-		# groupElitistExchangeMutation	::Function
 
 		function GAmodel(N::Int64, M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
 			this = new()
@@ -622,17 +618,19 @@ module DummyTest
 		
 			function evaluate(data::Array{Float32,1})
 				N = length(data)
-				psd = zeros(Float32,Int64(N/2)+1)
-				psd = (fft(data)[1:((N/2) +1)])
+				No2 = Int64(N/2)
+				psd = zeros(Float32,No2)
+				psd = (fft(data)[1:No2])
 				psd = (psd.*conj(psd))/length(data)
 				s = std(psd)
 				return s
 			end
 			function evaluate(ind::Int64)
 				N = length(this.ga_pops[ind].x)
-				psd = zeros(Float32,Int64(N/2)+1)
+				No2 = Int64(N/2)
+				psd = zeros(Float32,No2)
 				data = this.ga_pops[ind].x
-				psd = (fft(data)[1:((N/2) +1)])
+				psd = (fft(data)[1:No2])
 				psd = (psd.*conj(psd))/length(data)
 				
 				s = std(psd)
@@ -640,6 +638,18 @@ module DummyTest
 				return s
 			end
 			this.evaluate = evaluate
+			
+			
+			
+			this.repopulateAll = function(exceptID::Int64)
+				for k=1:(this.N)
+					if k!=exceptID
+						this.ga_pops[k].repopulate()
+					end
+				end
+			end
+				
+			
 			
 			function getBest(dataA::Array{Float32,1}, dataB::Array{Float32,1})
 				if this.evaluate(dataA) > this.evaluate(dataB)
@@ -649,11 +659,21 @@ module DummyTest
 				end
 			end
 			
-			function getBest()
+			function getBest(A::Int64, B::Int64)
+				dataA = this.ga_pops[A].x
+				dataB = this.ga_pops[B].x
+				ScoreA = this.evaluate(dataA)
+				ScoreB = this.evaluate(dataB)
+ 				if ScoreA > ScoreB
+					this.bestId = B
+					this.S = ScoreB
+					return B, ScoreB,dataB
+				else
+					this.bestId = A
+					this.S = ScoreA
+					return A, ScoreA,dataA
+				end	
 			end
-			
-			
-			
 			
 			this.getBest = getBest
 			
