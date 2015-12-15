@@ -586,19 +586,19 @@ module DummyTest
 	
 	
 	type GAmodel
-		ga_pop												::population										# populations object
-		#q1														::Array{Float32,1}							# q1 values
-		#q2														::Array{Float32,1}							# q2 values
-		#NFreqBins											::UInt64												# number of frequency bins for Groetzel FFT
-		#M1														::Float32												# mean value
-		#M2														::Float32												# variance*(N-1) value
+		ga_pops												::Array{population,1}						# array of populations
+		N															::Int64													# Number of populations
 		NSamples											::Int64													# total number of samples
 		S															::Float32												# standard deviation from best population
-				#
+
 		getBest												::Function
+		evaluate											::Function
+		tournamentSelection						::Function
+		orderedCrossOver 							::Function
+		exchangeMutation							::Function
+		
 		# evaluateAll										::Function
 		# par_evaluateAll								::Function
-		evaluate											::Function
 		# randomSelection								::Function
 		# topN_selection								::Function
 		# orderedCrossOver							::Function
@@ -611,15 +611,11 @@ module DummyTest
 		# groupElitistOrderedCrossOver	::Function
 		# groupElitistExchangeMutation	::Function
 
-		function GAmodel(M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
+		function GAmodel(N::Int64, M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
 			this = new()
 																																# initialization
-			this.ga_pop = population(M, Nbins) 
-			#this.NFreqBins = 
-			#this.q1 = q1 #zeros(Float32,this.NFreqBins+1)
-			#this.q2 = q2 #zeros(Float32,this.NFreqBins+1)
-			#this.M1 =0.0f0
-			#this.M2 =0.0f0
+			this.ga_pops = [population(M, Nbins) for i=1:N]
+			this.N = N
 			this.NSamples = 0
 
 			######################################################### functions
@@ -627,68 +623,156 @@ module DummyTest
 			function evaluate(data::Array{Float32,1})
 				N = length(data)
 				psd = zeros(Float32,Int64(N/2)+1)
-				#q1 = zeros(Float32,this.NFreqBins+1)
-				#q2 = zeros(Float32,this.NFreqBins+1)
-				#M1 = 0
-				#M2 = 0
-				#Nout = 0
-				#psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
 				psd = (fft(data)[1:((N/2) +1)])
 				psd = (psd.*conj(psd))/length(data)
 				s = std(psd)
 				return s
 			end
-			function evaluate()
-				N = length(this.ga_pop.x)
+			function evaluate(ind::Int64)
+				N = length(this.ga_pops[ind].x)
 				psd = zeros(Float32,Int64(N/2)+1)
-				#q1 = zeros(Float32,this.NFreqBins+1)
-				#q2 = zeros(Float32,this.NFreqBins+1)
-				#M1 = 0
-				#M2 = 0
-				#Nout = 0
-				data = this.ga_pop.x
+				data = this.ga_pops[ind].x
 				psd = (fft(data)[1:((N/2) +1)])
 				psd = (psd.*conj(psd))/length(data)
 				
 				s = std(psd)
-				#psd, q1, q2 = goertzel(data, this.NFreqBins, this.q1, this.q2)
-				#M1 = mean(psd)
-				#M2 = var(psd)
-				#s = std(psd)
-				#this.ga_pop.q1 = q1
-				#this.ga_pop.q2 = q2
-				#this.ga_pop.M1 = M1
-				#this.ga_pop.M2 = M2
-				#this.ga_pop.NSamples = Nout
-				this.ga_pop.score = s
+				this.ga_pops[ind].score = s
 				return s
 			end
 			this.evaluate = evaluate
-			this.getBest = function(dataA::Array{Float32,1}, dataB::Array{Float32,1})
 			
+			function getBest(dataA::Array{Float32,1}, dataB::Array{Float32,1})
 				if this.evaluate(dataA) > this.evaluate(dataB)
 					return dataB
 				else
 					return dataA
 				end
-				
 			end
+			
+			function getBest()
+			end
+			
+			
+			
+			
+			this.getBest = getBest
 			
 			this.tournamentSelection = function(k::Int64)
+				N = length(this.ga_pops[1].x)
+				No2 = Int64(N/2)
 				
+				parents_ids = rand([1:this.N;],k)
+				scores = zeros(k)
+				
+				for i=1:k
+					scores[i]= evaluate(i)
+				end
+				
+				parentA_id = parents_ids[(findmax(scores)[2])]
+				scores[(findmax(scores)[2])] *= -1
+				parentB_id = parents_ids[(findmax(scores)[2])]
 			
-			
+				return parentA_id,parentB_id,this.ga_pops[parentA_id].x, this.ga_pops[parentB_id].x
 			end
+			
+			this.orderedCrossOver = function(parent1_indexes::Int64,parent2_indexes::Int64)
+				pop_ind1 = parent1_indexes
+				pop_ind2 = parent2_indexes
+				p1 = this.ga_pops[ pop_ind1 ].x 
+				p2 = this.ga_pops[ pop_ind2 ].x
+
+				if pop_ind1 != pop_ind2
+					ind1 = sortperm(p1)
+					ind2 = sortperm(p2)
+
+					cut_A = rand([1:(length(p1)-1);])
+					cut_B = rand([(cut_A+1):length(p1);])
+
+					child1 = zeros(Float32,size(p1))
+					child2 = zeros(Float32,size(p1))
+				
+					mask1 = ones(Int64,size(p1))
+					mask2 = ones(Int64,size(p1))
+				
+					child1[cut_A:cut_B] = p1[cut_A:cut_B]
+					child2[cut_A:cut_B] = p2[cut_A:cut_B]
+				
+					temp1 = []
+					temp2 = []
+					for k0=1:length(mask1)
+						if (ind1[k0]>= cut_A) && (ind1[k0]<=cut_B)
+							mask1[ind2[k0]]= 0
+						end
+						if (ind2[k0]>= cut_A) && (ind2[k0]<=cut_B)
+							mask2[ind1[k0]]= 0
+						end
+					end
+					for k0 = 1:length(mask1)
+						if mask1[k0]==1
+							temp1 = [temp1; p2[k0]]
+						end
+						if mask2[k0]==1
+							temp2 = [temp2; p1[k0]]
+						end
+					end
+				
+					k_ind = 1 
+					for k0 = 1: (cut_A-1)
+						child1[k0] = temp1[k_ind]
+						child2[k0] = temp2[k_ind]
+						k_ind +=1
+					end
+					for k0 = (cut_B+1):length(p1)
+						child1[k0] = temp1[k_ind]
+						child2[k0] = temp2[k_ind]
+						k_ind +=1
+					end
+
+					this.ga_pops[ pop_ind1 ].x = child1
+					this.ga_pops[ pop_ind2 ].x = child2
+				end
+				
+				return pop_ind1,pop_ind2, this.ga_pops[ pop_ind1 ].x, this.ga_pops[ pop_ind2 ].x
+			end
+			
+			this.exchangeMutation = function(parent1_indexes::Int64,parent2_indexes::Int64, prob_mutation::Float64)
+				pop_ind1 = parent1_indexes
+				pop_ind2 = parent2_indexes
+				p1 = this.ga_pops[ pop_ind1 ].x 
+				p2 = this.ga_pops[ pop_ind2 ].x
+
+				if rand() < prob_mutation					
+					A = rand([1:(length(p1)-1);])
+					B = rand([(A+1):length(p1);])
+					temp = p1[A]
+					p1[A] = p1[B]
+					p1[B] =temp
+					this.ga_pops[ pop_ind1 ].x = p1
+				end
+				
+				if rand() < prob_mutation	
+					A = rand([1:(length(p1)-1);])
+					B = rand([(A+1):length(p1);])
+					temp = p2[A]
+					p2[A] = p2[B]
+					p2[B] =temp
+					this.ga_pops[ pop_ind2 ].x = p2
+				end
+					
+				return pop_ind1,pop_ind2, p1, p2
+			end
+
+			
 			
 			return this
 		end
 		
-		function GAmodel(M::Int64, Nbins::Int64)
-			return GAmodel(M,Nbins, zeros(Float32,M+1),zeros(Float32,M+1))
+		function GAmodel(N::Int64,M::Int64, Nbins::Int64)
+			return GAmodel(N,M,Nbins, zeros(Float32,M+1),zeros(Float32,M+1))
 		end
 		
 		function GAmodel()
-			return GAmodel(128,16,zeros(Float32,128+1),zeros(Float32,128+1))
+			return GAmodel(16,128,16,zeros(Float32,128+1),zeros(Float32,128+1))
 		end
 		
 
