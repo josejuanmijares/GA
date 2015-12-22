@@ -852,7 +852,7 @@ module DummyTest
 						end
 
 					
-						println("eval(p1) $(this.evaluate(p1))  vs  eval(child1) $(this.evaluate(child1)) \t \t eval(p2) $(this.evaluate(p2)) \t vs  eval(child2) $(this.evaluate(child2))")
+						##println("eval(p1) $(this.evaluate(p1))  vs  eval(child1) $(this.evaluate(child1)) \t \t eval(p2) $(this.evaluate(p2)) \t vs  eval(child2) $(this.evaluate(child2))")
 						#this.ga_pops[ pop_ind1 ].x = child1
 						#this.ga_pops[ pop_ind2 ].x = child2
 					end
