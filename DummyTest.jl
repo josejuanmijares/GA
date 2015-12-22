@@ -598,14 +598,17 @@ module DummyTest
 		N															::Int64													# Number of populations
 		NSamples											::Int64													# total number of samples
 		S															::Float32												# standard deviation from best population
-		bestId												::Int64
+		bestId												::Int64													# id of the best population
 
+		evaluate											::Function
+		evaluateAll										::Function
 		repopulateAll									::Function
 		getBest												::Function
-		evaluate											::Function
 		tournamentSelection						::Function
 		orderedCrossOver 							::Function
 		exchangeMutation							::Function
+		elitistSelection							::Function
+		elitistOrderedCrossOver				::Function
 
 		function GAmodel(N::Int64, M::Int64, Nbins::Int64, q1::Array{Float32,1}, q2::Array{Float32,1})
 			this = new()
@@ -620,8 +623,7 @@ module DummyTest
 				N = length(data)
 				No2 = Int64(N/2)
 				psd = zeros(Float32,No2)
-				psd = (fft(data)[1:No2])
-				psd = (psd.*conj(psd))/length(data)
+				psd = ((abs( fft(data) )./No2 )[1:No2]).^2;
 				s = std(psd)
 				return s
 			end
@@ -630,17 +632,17 @@ module DummyTest
 				No2 = Int64(N/2)
 				psd = zeros(Float32,No2)
 				data = this.ga_pops[ind].x
-				psd = (fft(data)[1:No2])
-				psd = (psd.*conj(psd))/length(data)
-				
+				psd = ((abs( fft(data) )./No2 )[1:No2]).^2;
 				s = std(psd)
 				this.ga_pops[ind].score = s
 				return s
 			end
 			this.evaluate = evaluate
-			
-			
-			
+			this.evaluateAll = function()
+				for k=1:this.N
+					this.ga_pops[k].score= this.evaluate(k)
+				end
+			end	
 			this.repopulateAll = function(exceptID::Int64)
 				for k=1:(this.N)
 					if k!=exceptID
@@ -648,9 +650,6 @@ module DummyTest
 					end
 				end
 			end
-				
-			
-			
 			function getBest(dataA::Array{Float32,1}, dataB::Array{Float32,1})
 				if this.evaluate(dataA) > this.evaluate(dataB)
 					return dataB
@@ -658,7 +657,6 @@ module DummyTest
 					return dataA
 				end
 			end
-			
 			function getBest(A::Int64, B::Int64)
 				dataA = this.ga_pops[A].x
 				dataB = this.ga_pops[B].x
@@ -674,9 +672,18 @@ module DummyTest
 					return A, ScoreA,dataA
 				end	
 			end
-			
+			function getBest()
+				b_score = this.ga_pops[1].score
+				b_ind = 1
+				for k=2:this.N
+					if this.ga_pops[k].score < b_score
+						b_score = this.ga_pops[k].score
+						b_ind = k
+					end
+				end
+				return b_ind, b_score, this.ga_pops[b_ind].x
+			end
 			this.getBest = getBest
-			
 			this.tournamentSelection = function(k::Int64)
 				N = length(this.ga_pops[1].x)
 				No2 = Int64(N/2)
@@ -694,7 +701,6 @@ module DummyTest
 			
 				return parentA_id,parentB_id,this.ga_pops[parentA_id].x, this.ga_pops[parentB_id].x
 			end
-			
 			this.orderedCrossOver = function(parent1_indexes::Int64,parent2_indexes::Int64)
 				pop_ind1 = parent1_indexes
 				pop_ind2 = parent2_indexes
@@ -754,7 +760,6 @@ module DummyTest
 				
 				return pop_ind1,pop_ind2, this.ga_pops[ pop_ind1 ].x, this.ga_pops[ pop_ind2 ].x
 			end
-			
 			this.exchangeMutation = function(parent1_indexes::Int64,parent2_indexes::Int64, prob_mutation::Float64)
 				pop_ind1 = parent1_indexes
 				pop_ind2 = parent2_indexes
@@ -781,8 +786,82 @@ module DummyTest
 					
 				return pop_ind1,pop_ind2, p1, p2
 			end
+			this.elitistSelection = function()
+				this.evaluateAll()
+				k_prime, _, _ = this.getBest()
+				#list = symdiff(k_prime,[1:this.N;])
+				list = [1:this.N;]
+				#parent1_indexes = [k_prime for k=1:(this.N-1)]
+				parent1_indexes = [k_prime for k=1:(this.N)]
+				parent2_indexes = list
+				return convert(Array{Int64,1},parent1_indexes),convert(Array{Int64,1},parent2_indexes)
+			end
+			this.elitistOrderedCrossOver = function(parent1_indexes::Array{Int64,1},parent2_indexes::Array{Int64,1})
+				for k=1:length(parent1_indexes)
+					pop_ind1 = parent1_indexes[k]
+					pop_ind2 = parent2_indexes[k]
+					
+					p1 = copy(this.ga_pops[ pop_ind1 ].x) 
+					p2 = copy(this.ga_pops[ pop_ind2 ].x)
 
-			
+					if pop_ind1 != pop_ind2
+						ind1 = sortperm(p1)
+						ind2 = sortperm(p2)
+
+						cut_A = rand([1:(length(p1)-1);])
+						cut_B = rand([(cut_A+1):length(p1);])
+
+						child1 = zeros(Float32,size(p1))
+						child2 = zeros(Float32,size(p1))
+				
+						mask1 = ones(Int64,size(p1))
+						mask2 = ones(Int64,size(p1))
+				
+						child1[cut_A:cut_B] = p1[cut_A:cut_B]
+						child2[cut_A:cut_B] = p2[cut_A:cut_B]
+				
+						temp1 = []
+						temp2 = []
+						for k0=1:length(mask1)
+							if (ind1[k0]>= cut_A) && (ind1[k0]<=cut_B)
+								mask1[ind2[k0]]= 0
+							end
+							if (ind2[k0]>= cut_A) && (ind2[k0]<=cut_B)
+								mask2[ind1[k0]]= 0
+							end
+						end
+						for k0 = 1:length(mask1)
+							if mask1[k0]==1
+								temp1 = [temp1; p2[k0]]
+							end
+							if mask2[k0]==1
+								temp2 = [temp2; p1[k0]]
+							end
+						end
+				
+						k_ind = 1 
+						for k0 = 1: (cut_A-1)
+							child1[k0] = temp1[k_ind]
+							child2[k0] = temp2[k_ind]
+							k_ind +=1
+						end
+						for k0 = (cut_B+1):length(p1)
+							child1[k0] = temp1[k_ind]
+							child2[k0] = temp2[k_ind]
+							k_ind +=1
+						end
+
+					
+						println("eval(p1) $(this.evaluate(p1))  vs  eval(child1) $(this.evaluate(child1)) \t \t eval(p2) $(this.evaluate(p2)) \t vs  eval(child2) $(this.evaluate(child2))")
+						#this.ga_pops[ pop_ind1 ].x = child1
+						#this.ga_pops[ pop_ind2 ].x = child2
+					end
+				end
+				#return pop_ind1,pop_ind2, this.ga_pops[ pop_ind1 ].x, this.ga_pops[ pop_ind2 ].x
+			end
+
+
+
 			
 			return this
 		end
