@@ -604,9 +604,22 @@ module DummyTest
 		evaluateAll										::Function
 		repopulateAll									::Function
 		getBest												::Function
+		
+		rouletteWheelSelection				::Function
+		rankSelection									::Function
 		tournamentSelection						::Function
+		
+		orderOneCrossOver							::Function
 		orderedCrossOver 							::Function
+		partialMatchCrossOver					::Function
+		cycleCrossOver								::Function
+		
+		scrambleMutation							::Function
+		inversionMutation							::Function
+		swapMutation									::Function
 		exchangeMutation							::Function
+		insertMutation								::Function
+		
 		elitistSelection							::Function
 		elitistOrderedCrossOver				::Function
 
@@ -684,29 +697,242 @@ module DummyTest
 				return b_ind, b_score, this.ga_pops[b_ind].x
 			end
 			this.getBest = getBest
-			this.tournamentSelection = function(k::Int64)
-				N = length(this.ga_pops[1].x)
-				No2 = Int64(N/2)
-				
-				parents_ids = rand([1:this.N;],k)
-				scores = zeros(k)
-				
-				for i=1:k
-					scores[i]= evaluate(i)
-				end
-				
-				parentA_id = parents_ids[(findmax(scores)[2])]
-				scores[(findmax(scores)[2])] *= -1
-				parentB_id = parents_ids[(findmax(scores)[2])]
-			
-				return parentA_id,parentB_id,this.ga_pops[parentA_id].x, this.ga_pops[parentB_id].x
+
+
+			function rouletteWheelSelection()
+				this.evaluateAll()
+				S = [this.ga_pops[k].score for k=1:this.N]
+				S = cumsum(S./sum(S))
+				pA_ids = [findfirst(S.>=rand()) for k=1:this.N]
+				pB_ids = [findfirst(S.>=rand()) for k=1:this.N]
+				return pA_ids, pB_ids
 			end
+			function rankSelection()
+				this.evaluateAll()
+				S = [this.ga_pops[k].score for k=1:this.N]
+				Sind = sortperm(S)
+				pA_ids =[ Sind[rand([1:this.N])] for k=1: this.N]
+				pB_ids =[ Sind[rand([1:this.N])] for k=1: this.N]
+				return pA_ids, pB_ids
+			end
+			function tournamentSelection(TournamentSize::Int64)
+				pA_ids[k]= zeros(Int64,this.N)
+				pB_ids[k]= zeros(Int64,this.N)
+				if TournamentSize<= this.N
+					for k=1:this.N
+						ind = [rand([1:this.N]) for k=1:TournamentSize]
+						S = [this.evaluate(ind[k]) for k=1:TournamentSize]
+						pA_ids[k]= findmax(S)[2]
+						ind = [rand([1:this.N]) for k=1:TournamentSize]
+						S = [this.evaluate(ind[k]) for k=1:TournamentSize]
+						pB_ids[k]= findmax(S)[2]
+					end
+				else
+					println("Tournament Size > number of populations")
+				end
+				return pA_ids, pB_ids
+			end
+			
+			this.rouletteWheelSelection = rouletteWheelSelection
+			this.rankSelection = rankSelection
+			this.tournamentSelection = tournamentSelection
+			
+			function order1XO(ind1::Array{Int64,1},ind2::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
+				ini_Pt = rand([1:(length(ind1) - 1 );]);
+				end_Pt = rand([(ini_Pt + 1):(length(ind1));]);
+				child1 = zeros(Float32,length(p1))
+				child1_ind = zeros(Int64, length(p1))
+				p1_ind = [find(p1[k].== p1[ind1])[1] for k=1:length(p1)];
+				p2_ind = [find(p2[k].== p2[ind2])[1] for k=1:length(p2)];
+				child1_ind[ini_Pt:end_Pt] = p1_ind[ini_Pt:end_Pt]
+				child1[ini_Pt:end_Pt] = p1[ini_Pt:end_Pt]
+				lind = end_Pt+1
+				for k=(end_Pt+1):length(ind1)
+					if any(p2_ind[k].== child1_ind) == false
+						if lind == (length(ind1)+1)
+							lind = 1
+						end
+						child1_ind[lind] = p2_ind[k]
+						child1[lind] = p2[ p2_ind[k] ]
+						lind += 1
+					end
+				end	
+				for k=1:end_Pt
+					if any(p2_ind[k].== child1_ind) == false
+						if lind == (length(ind1)+1)
+							lind = 1
+						end
+						child1_ind[lind] = p2_ind[k]
+						child1[lind] = p2[ p2_ind[k] ]
+						lind += 1
+					end
+				end	
+				return child1
+			end
+			function orderOneCrossOver(pA_ids::Array{Int64,1},pB_ids::Array{Int64,1})
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1_ind = pA_ids[k]
+					p2_ind = pB_ids[k]
+					p1 = this.ga_pops[p1_ind].x
+					p2 = this.ga_pops[p2_ind].x
+					ind1 = sortperm(p1)
+					ind2 = sortperm(p2)
+					child1.ga_pops[p1_ind].x = order1XO(ind1,ind2, p1,p2)
+					child1.ga_pops[p2_ind].x = order1XO(ind2,ind1, p2,p1)
+				end
+				return child1
+			end
+			function PMX(ind1::Array{Int64,1},ind2::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
+				ini_Pt = rand([1:(length(ind1) - 1 );]);
+				end_Pt = rand([(ini_Pt + 1):(length(ind1));]);
+				child1 = zeros(length(p1))
+				child1[ini_Pt:end_Pt] = p1[ini_Pt:end_Pt]
+				p1_ind = [find(p1[k].== p1[ind1])[1] for k=1:length(p1)];
+				p2_ind = [find(p2[k].== p2[ind2])[1] for k=1:length(p2)];
+				mask1 = zeros(Int64,length(p1));
+				mask1[ini_Pt:end_Pt] = 1;
+				child1_ind = zeros(Int64,length(p1));
+				child1_ind[ini_Pt:end_Pt]= p1_ind[ini_Pt:end_Pt];
+										
+				for k = ini_Pt:end_Pt
+					if any( p2_ind[k].==child1_ind)==false
+						i = p2_ind[k]
+						j = p1_ind[k]
+						rj = find(p2_ind.==j)
+						if mask1[rj][1]==0
+							child1[rj] = p2[i]
+							child1_ind[rj] = i
+							mask1[rj] = 1
+						else
+							newk = find(p2_ind.==j)
+							jj = p1_ind[newk]
+							rjj = find(p2_ind.==jj)
+							child1[rjj] = p2[i]
+							child1_ind[rjj] = i
+							mask1[rjj] = 1
+						end
+					end
+				end
+				while( any(mask1.==0) ==true )
+					k = findfirst(mask1.==0)
+					child1[k] = p2[k]
+					child1_ind[k] = p2_ind[k]
+					mask1[k] = 1
+				end
+				return child1
+			end
+			function partialMatchCrossOver(parent1_indexes::Int64,parent2_indexes::Int64)
+				partialMatchCrossOver([parent1_indexes],[parent2_indexes])
+			end
+			function partialMatchCrossOver(parent1_indexes::Array{Int64,1},parent2_indexes::Array{Int64,1})
+				child = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:length(parent1_indexes)
+					p1_ind = parent1_indexes[k]
+					p2_ind = parent2_indexes[k]
+					p1 = this.ga_pops[p1_ind].x
+					p2 = this.ga_pops[p2_ind].x
+					
+					ind1 = sortperm(p1)
+					ind2 = sortperm(p2)
+					child1 = PMX(ind1,ind2,p1,p2)
+					child2 = PMX(ind2,ind1,p2,p1)
+					
+					child.ga_pops[p1_ind].x = child1
+					child.ga_pops[p2_ind].x = child2
+				end
+				return child
+			end	
+
+			function cycleXO(ind1::Array{Int64,1},ind2::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
+				k_start = 1
+				k_ind = 1
+				seq1 = []
+				seq1 = convert(Array{Int64,1},seq1)
+				seq1_val = []
+				
+				p1_ind = [find(p1[k].== p1[ind1])[1] for k=1:length(p1)];
+				p2_ind = [find(p2[k].== p2[ind2])[1] for k=1:length(p2)];
+				
+				#println( "p1_ind = $(p1_ind)" )
+				#println( "p2_ind = $(p2_ind)" )
+				
+				child1 = zeros(Float32,length(p1))
+				child2 = zeros(Float32,length(p1))
+				
+				#form the sequence seq1
+				pos = 1
+				pos_ini = 1
+				
+				while length(seq1) <length(p1_ind)
+					while true
+						val_ind = find(p2_ind[pos] .== p1_ind)[1]
+						seq1 = [seq1, val_ind]
+						child1[val_ind] =  p1[p1_ind[val_ind]]   #p1[ p1_ind[val_ind] ]
+						child2[val_ind] =  p2[p2_ind[val_ind]]
+						#println( "val_ind = $(val_ind) \t p2_ind[pos] = $(p2_ind[pos]) \t pos=$(pos)" )
+						#println( "seq1 = $(seq1)" )
+						#println( "child1 = $(child1) \t child2 = $(child2)" )
+						pos = val_ind
+						if pos == pos_ini 
+							break
+						end
+					end
+					remseq = setdiff(p1_ind, seq1)
+					if length(seq1) <length(p1_ind)
+						pos = remseq[1]
+						pos_ini = remseq[1]
+					else
+						break
+					end
+					#println("pos = $pos ")
+					while true
+						val_ind = find(p1_ind[pos] .== p2_ind)[1]
+						seq1 = [seq1, val_ind]
+						child1[val_ind] = p2[p2_ind[val_ind]]
+						child2[val_ind] = p1[p1_ind[val_ind]] 
+						# println( "val_ind = $(val_ind) \t p2_ind[pos] = $(p2_ind[pos]) \t pos=$(pos)" )
+						# println( "seq1 = $(seq1)" )
+						# println( "child1 = $(child1) \t child2 = $(child2)" )
+						pos = val_ind
+						if pos == pos_ini 
+							break
+						end
+					end
+					remseq = setdiff(p1_ind, seq1)
+					if length(seq1) <length(p1_ind)
+						pos = remseq[1]
+						pos_ini = remseq[1]
+					else
+						break
+					end
+					# println("pos = $pos ")
+				end
+				return child1, child2
+			end
+
+			function cycleCrossOver(pA_ids::Array{Int64,1},pB_ids::Array{Int64,1})
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1_ind = pA_ids[k]
+					p2_ind = pB_ids[k]
+					p1 = this.ga_pops[p1_ind].x
+					p2 = this.ga_pops[p2_ind].x
+					ind1 = sortperm(p1)
+					ind2 = sortperm(p2)
+					child1.ga_pops[p1_ind].x, child1.ga_pops[p2_ind].x = cycleXO(ind1,ind2, p1,p2)
+				end
+				return child1
+			end
+
 			this.orderedCrossOver = function(parent1_indexes::Int64,parent2_indexes::Int64)
 				pop_ind1 = parent1_indexes
 				pop_ind2 = parent2_indexes
 				p1 = this.ga_pops[ pop_ind1 ].x 
 				p2 = this.ga_pops[ pop_ind2 ].x
-
+				child1 = copy(p1)
+				child2 = copy(p2)
+				
 				if pop_ind1 != pop_ind2
 					ind1 = sortperm(p1)
 					ind2 = sortperm(p2)
@@ -714,8 +940,8 @@ module DummyTest
 					cut_A = rand([1:(length(p1)-1);])
 					cut_B = rand([(cut_A+1):length(p1);])
 
-					child1 = zeros(Float32,size(p1))
-					child2 = zeros(Float32,size(p1))
+					#child1 = zeros(Float32,size(p1))
+					#child2 = zeros(Float32,size(p1))
 				
 					mask1 = ones(Int64,size(p1))
 					mask2 = ones(Int64,size(p1))
@@ -754,12 +980,83 @@ module DummyTest
 						k_ind +=1
 					end
 
-					this.ga_pops[ pop_ind1 ].x = child1
-					this.ga_pops[ pop_ind2 ].x = child2
+					#this.ga_pops[ pop_ind1 ].x = child1
+					#this.ga_pops[ pop_ind2 ].x = child2
 				end
 				
-				return pop_ind1,pop_ind2, this.ga_pops[ pop_ind1 ].x, this.ga_pops[ pop_ind2 ].x
+				return child1, child2
 			end
+			this.cycleCrossOver = cycleCrossOver
+			this.orderOneCrossOver= orderOneCrossOver
+			this.partialMatchCrossOver = partialMatchCrossOver
+			
+			
+			
+			function insertMutation(prob_mutation::Float64)
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1 = this.ga_pops[k].x
+					if rand()<= prob_mutation
+						pos1 = rand([1:(length(p1) - 2);])
+						pos2 = rand([pos1+2:length(p1);])
+						#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
+						insert!(p1, pos1, splice!(p1,pos2))
+						#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
+					end
+					child1.ga_pops[k].x = p1
+				end
+				return child1
+			end
+			
+			function swapMutation(prob_mutation::Float64)
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1 = this.ga_pops[k].x
+					if rand()<= prob_mutation
+						pos1 = rand([1:(length(p1) - 1);])
+						pos2 = rand([(pos1+1):length(p1);])
+						temp = p1[pos1]
+						p1[pos1] = p1[pos2]
+						p1[pos2]=temp
+					end
+					child1.ga_pops[k].x = p1
+				end
+				return child1
+			end
+			
+			function inversionMutation(prob_mutation::Float64)
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1 = this.ga_pops[k].x
+					if rand()<= prob_mutation
+						pos1 = rand([1:(length(p1) - 1);])
+						pos2 = rand([(pos1+1):length(p1);])
+						p1[pos1:1:pos2] = p1[pos2:-1:pos1]
+					end
+					child1.ga_pops[k].x = p1
+				end
+				return child1
+			end
+			
+			function scrambleMutation(prob_mutation::Float64)
+				child1 = GAmodel(this.N,this.ga_pops[1].N,this.ga_pops[1].Nbins)
+				for k=1:this.N
+					p1 = this.ga_pops[k].x
+					if rand()<= prob_mutation
+						pos1 = rand([1:(length(p1) - 1);])
+						pos2 = rand([(pos1+1):length(p1);])
+						p1[pos1:1:pos2] = shuffle(p1[pos1:1:pos2])
+					end
+					child1.ga_pops[k].x = p1
+				end
+				return child1
+			end
+			
+			
+			this.scrambleMutation = scrambleMutation
+			this.inversionMutation =inversionMutation
+			this.swapMutation = swapMutation
+			this.insertMutation = insertMutation
 			this.exchangeMutation = function(parent1_indexes::Int64,parent2_indexes::Int64, prob_mutation::Float64)
 				pop_ind1 = parent1_indexes
 				pop_ind2 = parent2_indexes
