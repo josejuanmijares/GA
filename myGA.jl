@@ -3,7 +3,7 @@
 
 module myGA
 
-	export population,  GAmodel
+	export population,  GAmodel, copy
 
 	import ExactHistEq.EHEfast3
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
@@ -12,10 +12,10 @@ module myGA
 		x													::Array{Float32,1}							# population elements
 		N													::Int64													# length of the population
 		score											::Float32												# fitness
-		q1												::Array{Float32,1}							# q1 values
-		q2												::Array{Float32,1}							# q2 values
-		M1												::Float32												# mean value
-		M2												::Float32												# variance*(N-1) value
+		#q1												::Array{Float32,1}							# q1 values
+		#q2												::Array{Float32,1}							# q2 values
+		#M1												::Float32												# mean value
+		#M2												::Float32												# variance*(N-1) value
 		NSamples									::Int64													# total number of samples
 		Nbins											::Int64
 		
@@ -27,10 +27,10 @@ module myGA
 			this.x = EHEfast3(rand(Float32,N),Nbins,Float32)
 			this.N = N
 			this.score = 0.0f0
-			this.q1 = zeros(Float32,this.N+1)
-			this.q2 = zeros(Float32,this.N+1)
-			this.M1 =0.0f0
-			this.M2 =0.0f0
+			#this.q1 = zeros(Float32,this.N+1)
+			#this.q2 = zeros(Float32,this.N+1)
+			#this.M1 =0.0f0
+			#this.M2 =0.0f0
 			this.NSamples = 0
 			
 			this.repopulate = function( )
@@ -45,10 +45,10 @@ module myGA
 			this.N = length(x)
 
 			this.score = 0.0f0
-			this.q1 = zeros(Float32,this.N+1)
-			this.q2 = zeros(Float32,this.N+1)
-			this.M1 =0.0f0
-			this.M2 =0.0f0
+		#	this.q1 = zeros(Float32,this.N+1)
+		#	this.q2 = zeros(Float32,this.N+1)
+		#	this.M1 =0.0f0
+		#	this.M2 =0.0f0
 			this.NSamples = 0
 			return this
 		end
@@ -57,10 +57,8 @@ module myGA
 		end
 	end
 
-	
-	
 	type GAmodel
-		data												::Array{population,1}						# array of populations
+		data													::Array{population,1}						# array of populations
 		N															::Int64													# Number of populations
 		NSamples											::Int64													# total number of samples
 		S															::Float32												# standard deviation from best population
@@ -70,6 +68,7 @@ module myGA
 		evaluateAll										::Function
 		repopulateAll									::Function
 		getBest												::Function
+		getScores											::Function
 		
 		rouletteWheelSelection				::Function
 		rankSelection									::Function
@@ -77,7 +76,6 @@ module myGA
 		
 		positionBasedCrossOver				::Function
 		orderOneCrossOver							::Function
-		orderedCrossOver 							::Function
 		partialMatchCrossOver					::Function
 		cycleCrossOver								::Function
 		
@@ -87,6 +85,12 @@ module myGA
 		swapMutation									::Function
 		exchangeMutation							::Function
 		insertMutation								::Function
+		
+		replaceWorst									::Function
+		elitism												::Function
+		roundRobinTournament					::Function
+		muReplacement									::Function
+		
 		
 		elitistSelection							::Function
 		elitistOrderedCrossOver				::Function
@@ -118,19 +122,6 @@ module myGA
 				this.data[ind].score = s
 				return s
 			end
-			this.evaluate = evaluate
-			this.evaluateAll = function()
-				for k=1:this.N
-					this.data[k].score= this.evaluate(k)
-				end
-			end	
-			this.repopulateAll = function(exceptID::Int64)
-				for k=1:(this.N)
-					if k!=exceptID
-						this.data[k].repopulate()
-					end
-				end
-			end
 			function getBest(dataA::Array{Float32,1}, dataB::Array{Float32,1})
 				if this.evaluate(dataA) > this.evaluate(dataB)
 					return dataB
@@ -154,23 +145,30 @@ module myGA
 				end	
 			end
 			function getBest()
-				score = this.data[1].score
-				ind = 1
-				for k=2:this.N
-					if this.data[k].score < b_score
-						score = this.data[k].score
-						ind = k
+				score = [this.data[k].score for k=1:this.N]
+				return findmin(score)
+			end
+			function getScores()
+				return [this.data[k].score for k=1:this.N]
+			end
+			
+			this.getBest = getBest
+			this.evaluate = evaluate
+			this.evaluateAll = function()
+				for k=1:this.N
+					this.data[k].score= this.evaluate(k)
+				end
+			end	
+			this.repopulateAll = function(exceptID::Int64)
+				for k=1:(this.N)
+					if k!=exceptID
+						this.data[k].repopulate()
 					end
 				end
-				return ind, score, this.data[ind].x
 			end
-			this.getBest = getBest
-
-
+			this.getScores = getScores
 
 			#.................................................................................................................... Selection
-			
-			
 			function rouletteWheelSelection(duplicates=true)
 				this.evaluateAll()
 				S = [this.data[k].score for k=1:this.N]
@@ -462,14 +460,11 @@ module myGA
 				end
 				return child1,child2
 			end
-			
-			
-			
+
 			this.cycleCrossOver = cycleCrossOver
 			this.orderOneCrossOver= orderOneCrossOver
 			this.partialMatchCrossOver = partialMatchCrossOver
 			this.positionBasedCrossOver = positionBasedCrossOver
-			
 			
 			
 			
@@ -538,8 +533,8 @@ module myGA
 					if rand()<= prob_mutation
 						pos1 = rand([1:(length(p1) - 1 - l);])
 						temp =splice!(p1,pos1:(pos1+l))
-						pos2 = rand([1:(length(p1)-1;])
-						p1 = [p1[1:pos2], temp, p1[(pos2+1):end]]
+						pos2 = rand([1:(length(p1)-1);])
+						p1 = [p1[1:pos2], temp, p1[(pos2+1):end] ]
 					end
 					child1.data[k].x = p1
 				end
@@ -573,6 +568,157 @@ module myGA
 				end
 				return p1, p2
 			end
+			
+			
+			
+			#.................................................................................................................... Replacement
+			function replaceWorst(lambda::Int64,child1::GAmodel, child2::GAmodel )
+				this.evaluateAll()
+				scores = this.getScores()
+				scores_ind = sortperm(scores)
+				
+				scores_c1 = child1.getScores()
+				scores_c2 = child2.getScores()
+				scores_c = [scores_c1; scores_c2]
+				scores_c_ind = sortperm(scores_c)
+				
+				for k=1:lambda
+					pind = scores_ind[end - (k-1)]
+					cind = scores_c_ind[k]
+					if cind<=this.N
+						#println("pind=$pind \t cind=$cind")
+						this.data[pind].x = child1.data[cind].x
+					else
+						#println("pind=$pind \t cind=$cind    $(cind-this.N)")						
+						this.data[pind].x = child2.data[cind - this.N].x
+					end
+				end
+				this.evaluateAll()
+				#println("$(sort(this.getScores()))")
+			end
+			function elitism(lambda::Int64,child1::GAmodel, child2::GAmodel )
+				this.evaluateAll()
+				scores = this.getScores()
+				scores_ind = sortperm(scores)
+				scores_c1 = child1.getScores()
+				scores_c2 = child2.getScores()
+				scores_c = [scores_c1, scores_c2]
+				scores_c_ind = sortperm(scores_c)
+				for k=1:(this.N-lambda)
+					pind = scores_ind[end - (k-1)]
+					cind = scores_c_ind[rand( [1:length(scores_c_ind)] )]
+					if cind<=this.N
+						#println("pind=$pind \t cind=$cind")
+						this.data[pind].x = child1.data[cind].x
+					else
+						#println("pind=$pind \t cind=$cind    $(cind-this.N)")						
+						this.data[pind].x = child2.data[cind - this.N].x
+					end	
+				end
+				this.evaluateAll()
+				#println("$(sort(this.getScores()))")
+			end
+			function roundRobinTournament(mu::Int64, qTournaments::Int64,child1::GAmodel, child2::GAmodel)
+				this.evaluateAll()
+				scores0 = []
+				scores0 = [scores0; this.getScores()]
+				scores0 = [scores0; child1.getScores()]
+				scores0 = [scores0; child2.getScores()]
+				
+				indexes = [1:(3*this.N);]
+
+				c = shuffle(indexes)
+
+				wins = zeros(Int64,length(c))
+				scores = zeros(length(c))
+				scores = scores0[c]
+				
+				ct1 = c
+				ct2 = circshift(ct1,1)
+				for t=1:qTournaments
+					for qind =1:length(c)
+						ind1 = ct1[qind]
+						ind2 = ct2[qind]
+						if scores[ind1] >= scores[ind2]
+							wins[ind1] += 1
+						else
+							wins[ind2] += 1
+						end
+					end
+					ct2 = circshift(ct2,1)
+				end
+	
+				wins_ind = sortperm(wins,rev=true)
+				
+				for k=1:mu
+					t = Int64(floor(wins_ind[k]/(this.N)))
+					i = wins_ind[k]- this.N*t
+					if t==0
+						this.data[k].x = this.data[i].x
+					end
+					if t==1
+						this.data[k].x = child1.data[i].x
+					end
+					if t==2
+						this.data[k].x = child2.data[i].x
+					end
+				end
+			end
+			function muReplacement(mu::Int64, qTournaments::Int64, child1::GAmodel, child2::GAmodel)
+				this.evaluateAll()
+				scores0 = []
+				scores0 = [scores0; child1.getScores()]
+				scores0 = [scores0; child2.getScores()]
+				
+				p = GAmodel(this.N,this.data[1].N,this.data[1].Nbins)
+				
+				indexes = [1:(2*this.N);]
+
+				c = shuffle(indexes)
+
+				wins = zeros(Int64,length(c))
+				scores = zeros(length(c))
+				scores = scores0[c]
+				
+				ct1 = c
+				ct2 = circshift(ct1,1)
+				for t=1:qTournaments
+					for qind =1:length(c)
+						ind1 = ct1[qind]
+						ind2 = ct2[qind]
+						if scores[ind1] >= scores[ind2]
+							wins[ind1] += 1
+						else
+							wins[ind2] += 1
+						end
+					end
+					ct2 = circshift(ct2,1)
+				end
+	
+				wins_ind = sortperm(wins,rev=true)
+				
+				for k=1:mu
+					t = Int64(floor(wins_ind[k]/(this.N)))
+					i = wins_ind[k]- this.N*t
+					if t==0
+						this.data[k].x = child1.data[i].x
+					end
+					if t==1
+						this.data[k].x = child2.data[i].x
+					end
+				end
+				for k=(mu+1):this.N
+					this.data[k].x = p.data[k].x
+				end
+				
+			end
+			
+			
+			
+			this.replaceWorst = replaceWorst
+			this.elitism = elitism
+			this.roundRobinTournament = roundRobinTournament
+			this.muReplacement =muReplacement
 			
 			
 			this.elitistSelection = function()
@@ -662,14 +808,10 @@ module myGA
 		function GAmodel()
 			return GAmodel(16,128,16,zeros(Float32,128+1),zeros(Float32,128+1))
 		end
-		
-
-	
-	
-		
+			
 	end
-	
 
+	
 end
 
 
