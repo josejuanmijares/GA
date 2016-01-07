@@ -3,7 +3,7 @@
 
 module myGA
 
-	export population,  GAmodel, copy
+	export population,  GAmodel, SuperJuice
 
 	import ExactHistEq.EHEfast3
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
@@ -76,6 +76,7 @@ module myGA
 		
 		positionBasedCrossOver				::Function
 		orderOneCrossOver							::Function
+		orderOneCrossOver_2						::Function
 		partialMatchCrossOver					::Function
 		cycleCrossOver								::Function
 		
@@ -233,6 +234,69 @@ module myGA
 			
 			
 			#.................................................................................................................... CrossOver
+			function order1XO_2(p1_ind::Array{Int64,1},p2_ind::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
+				
+				N = length(p1_ind)
+				
+				ini_Pt = rand([1:(N - 1 );]);
+				end_Pt = rand([(ini_Pt + 1):N;]);
+				childVec= zeros(Float32,N)
+				childVec_ind = zeros(Int64, N)
+				#p1_ind = [find(p1[k].== p1[ind1])[1] for k=1:length(p1)];
+				#p2_ind = [find(p2[k].== p2[ind2])[1] for k=1:length(p2)];
+				
+				childVec_ind[ini_Pt:end_Pt] = p1_ind[ini_Pt:end_Pt]
+				
+				#println("p1_ind = $(p1_ind')")
+				#println("childVec_ind = $(childVec_ind')")
+				lind = end_Pt+1
+				for k=lind:N
+					if any(p2_ind[k].== childVec_ind) == false
+						if lind == (N+1)
+							lind = 1
+						end
+						childVec_ind[lind] = p2_ind[k]
+						lind += 1
+					end
+				end	
+				#println("childVec_ind = $(childVec_ind')")
+				for k=1:end_Pt
+					if any(p2_ind[k].== childVec_ind) == false
+						if lind == (N+1)
+							lind = 1
+						end
+						childVec_ind[lind] = p2_ind[k]
+						lind += 1
+					end
+				end
+				#println("childVec_ind = $(childVec_ind')")
+				childVec = p1[childVec_ind]
+				return childVec
+			end
+			function orderOneCrossOver_2(p1_ids::Array{Int64,1},p2_ids::Array{Int64,1})
+				child1 = GAmodel(this.N,this.data[1].N,this.data[1].Nbins)
+				child2 = GAmodel(this.N,this.data[1].N,this.data[1].Nbins)
+				for k=1:this.N
+					p1_ind = p1_ids[k]
+					p2_ind = p2_ids[k]
+					p1 = this.data[p1_ind].x
+					p2 = this.data[p2_ind].x
+					ind1 = sortperm(p1)
+					ind2 = sortperm(p2)
+					
+					
+					ind1_inv = zeros(Int64,length(ind1))
+					ind2_inv = zeros(Int64,length(ind2))
+					
+					setindex!(ind1_inv,[1:length(ind1);],ind1)
+					setindex!(ind2_inv,[1:length(ind1);],ind2)
+					
+					child1.data[k].x = order1XO_2(ind1_inv,ind2_inv, p1, p2)
+					child2.data[k].x = order1XO_2(ind2_inv,ind1_inv, p2, p1)
+					
+				end
+				return child1,child2
+			end
 			function order1XO(ind1::Array{Int64,1},ind2::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
 				ini_Pt = rand([1:(length(ind1) - 1 );]);
 				end_Pt = rand([(ini_Pt + 1):(length(ind1));]);
@@ -253,6 +317,7 @@ module myGA
 						lind += 1
 					end
 				end	
+				#println("childVec_ind = $(childVec_ind') ... $(childVec')")
 				for k=1:end_Pt
 					if any(p2_ind[k].== childVec_ind) == false
 						if lind == (length(ind1)+1)
@@ -262,7 +327,8 @@ module myGA
 						childVec[lind] = p2[ p2_ind[k] ]
 						lind += 1
 					end
-				end	
+				end
+				#println("*childVec_ind = $(childVec_ind') ... $(childVec')")	
 				return childVec
 			end
 			function orderOneCrossOver(p1_ids::Array{Int64,1},p2_ids::Array{Int64,1})
@@ -463,6 +529,7 @@ module myGA
 
 			this.cycleCrossOver = cycleCrossOver
 			this.orderOneCrossOver= orderOneCrossOver
+			this.orderOneCrossOver_2= orderOneCrossOver_2
 			this.partialMatchCrossOver = partialMatchCrossOver
 			this.positionBasedCrossOver = positionBasedCrossOver
 			
@@ -664,7 +731,7 @@ module myGA
 					end
 				end
 			end
-			function muReplacement(mu::Int64, qTournaments::Int64, child1::GAmodel, child2::GAmodel)
+			function muReplacement(mu::Int64, mu2::Int64 , qTournaments::Int64, child1::GAmodel, child2::GAmodel)
 				this.evaluateAll()
 				scores0 = []
 				scores0 = [scores0; child1.getScores()]
@@ -696,19 +763,23 @@ module myGA
 				end
 	
 				wins_ind = sortperm(wins,rev=true)
+				scores = this.getScores()
+				scores_ind = sortperm(scores,rev=true)
 				
 				for k=1:mu
 					t = Int64(floor(wins_ind[k]/(this.N)))
 					i = wins_ind[k]- this.N*t
+					ki = scores_ind[k]
 					if t==0
-						this.data[k].x = child1.data[i].x
+						this.data[ki].x = child1.data[i].x
 					end
 					if t==1
-						this.data[k].x = child2.data[i].x
+						this.data[ki].x = child2.data[i].x
 					end
 				end
-				for k=(mu+1):this.N
-					this.data[k].x = p.data[k].x
+				for k=(mu+1):mu2
+					ki = scores_ind[k]
+					this.data[ki].x = p.data[k].x
 				end
 				
 			end
@@ -811,6 +882,41 @@ module myGA
 			
 	end
 
+	function SuperJuice(N::Int64)
+		
+		if N<=512
+			buffer = zeros(Float32,N)
+			g = GAmodel(16,N,Int64(N/2));
+			g = doSuperJuice(g, 500)
+			#println(g)
+			#println(g.getBest())
+			#error("hola")
+			buffer = g.data[g.getBest()[2]].x
+			return buffer
+		end
+		
+	end
+	
+	function doSuperJuice(g::GAmodel, k_stop::Int64)
+			g.evaluateAll();	
+			k = 1
+			#csvfile = open("data.csv","w")
+			while k <= k_stop
+				parentA, parentB = g.rouletteWheelSelection(false);
+				childA, childB = g.orderOneCrossOver_2(parentA, parentB);
+				childA = childA.insertMutation(0.1); childB = childB.insertMutation(0.1);
+				g.muReplacement(Int64(4), Int64(g.N-2) , 10, childA, childB)
+				#g.replaceWorst(Int64(g.N/2),childA,childB)
+				println("$k \t\t\t best -> $(g.getBest())" )
+				#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
+				#write(csvfile, join(savevec,","), "\n")
+				k+=1;
+			end
+			#println(" k= $k \n g[1] = $(g.data[g.getBest()[2]].x')")
+			#close(csvfile)
+			return g;
+
+		end
 	
 end
 

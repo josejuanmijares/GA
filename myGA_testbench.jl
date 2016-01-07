@@ -31,7 +31,8 @@ function test1(g::GAmodel, fitness_value::Float64)
 		parentA, parentB = g.rouletteWheelSelection(false);
 		childA, childB = g.orderOneCrossOver(parentA, parentB);
 		childA = childA.insertMutation(0.1); childB = childB.insertMutation(0.1);
-		g.replaceWorst(Int64(g.N/2),childA,childB)
+		#g.replaceWorst(Int64(g.N/2),childA,childB)
+		muReplacement(Int64(g.N/4), Int64(g.N/2) , 10, childA, childB)
 		println("k = $k \t\t\t best -> $(g.getBest())" )
 		k+=1;
 	end
@@ -39,8 +40,8 @@ function test1(g::GAmodel, fitness_value::Float64)
 end
 
 function main()
-	gIni0 = GAmodel(128,512,128);
-	gIni = GAmodel(128,512,128);
+	gIni0 = GAmodel(16,512,128);
+	gIni = GAmodel(16,512,128);
 
 	for k=1:8
 		gIni.data[k].x  =gIni0.data[k].x;
