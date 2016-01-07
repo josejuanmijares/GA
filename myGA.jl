@@ -882,8 +882,57 @@ module myGA
 			
 	end
 
-	function SuperJuice(N::Int64)
+	type SuperJuice
+		buffer											::Array{Float32,1}							# buffer values
+		bufferEmpty									::Bool
+		N														::Int64													# N values requested
+		g														::GAmodel
 		
+		outputNumbers								::Function
+		appendNumbers								::Function
+		reloadNumbers								::Function
+		
+		function SuperJuice()
+			this =new()
+			this.g = GAmodel(16,512,128)
+			this.g = doSuperJuice(this.g,100)
+			this.buffer = this.g.data[this.g.getBest()[2]].x
+			this.bufferEmpty =false
+			this.N = 0
+			
+			function outputNumbers(N::Int64)
+				if N > length(this.buffer)
+					this.appendNumbers(N)
+				end	
+				out = [pop!(this.buffer) for k=1:N]
+				if length(this.buffer)==0
+					this.reloadNumbers()
+				end
+				return out
+			end
+			
+			function appendNumbers(N::Int64)
+				while length(this.buffer) < N
+					this.reloadNumbers()
+				end
+				
+			end
+			
+			function reloadNumbers()
+				this.g = doSuperJuice(this.g,100)
+				this.buffer = [this.buffer; this.g.data[this.g.getBest()[2]].x]
+			end
+			
+			this.outputNumbers = outputNumbers
+			this.appendNumbers = appendNumbers
+			this.reloadNumbers = reloadNumbers
+		
+			return this
+		end
+	end
+
+	#=
+	function SuperJuice(N::Int64)
 		if N<=512
 			buffer = zeros(Float32,N)
 			g = GAmodel(16,N,Int64(N/2));
@@ -894,30 +943,27 @@ module myGA
 			buffer = g.data[g.getBest()[2]].x
 			return buffer
 		end
-		
 	end
-	
 	function doSuperJuice(g::GAmodel, k_stop::Int64)
-			g.evaluateAll();	
-			k = 1
-			#csvfile = open("data.csv","w")
-			while k <= k_stop
-				parentA, parentB = g.rouletteWheelSelection(false);
-				childA, childB = g.orderOneCrossOver_2(parentA, parentB);
-				childA = childA.insertMutation(0.1); childB = childB.insertMutation(0.1);
-				g.muReplacement(Int64(4), Int64(g.N-2) , 10, childA, childB)
-				#g.replaceWorst(Int64(g.N/2),childA,childB)
-				println("$k \t\t\t best -> $(g.getBest())" )
-				#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
-				#write(csvfile, join(savevec,","), "\n")
-				k+=1;
-			end
-			#println(" k= $k \n g[1] = $(g.data[g.getBest()[2]].x')")
-			#close(csvfile)
-			return g;
-
+		g.evaluateAll();	
+		k = 1
+		#csvfile = open("data.csv","w")
+		while k <= k_stop
+			parentA, parentB = g.rouletteWheelSelection(false);
+			childA, childB = g.orderOneCrossOver_2(parentA, parentB);
+			childA = childA.insertMutation(0.1); childB = childB.insertMutation(0.1);
+			g.muReplacement(Int64(4), Int64(g.N-2) , 10, childA, childB)
+			#g.replaceWorst(Int64(g.N/2),childA,childB)
+			println("$k \t\t\t best -> $(g.getBest())" )
+			#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
+			#write(csvfile, join(savevec,","), "\n")
+			k+=1;
 		end
-	
+		#println(" k= $k \n g[1] = $(g.data[g.getBest()[2]].x')")
+		#close(csvfile)
+		return g;
+	end
+=#
 end
 
 

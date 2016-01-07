@@ -3,6 +3,7 @@ if any(LOAD_PATH .== pwd())==false
 else
 	include("reinit_myGA.jl")
 end
+#=
 		# rouletteWheelSelection				rWSel
 		# rankSelection									rSel
 		# tournamentSelection						tSel
@@ -23,7 +24,7 @@ end
 		# elitism												e
 		# roundRobinTournament					rRT
 		# muReplacement									mR
-
+=#
 function test1(g::GAmodel, fitness_value::Float64)
 	g.evaluateAll();	
 	k = 1
