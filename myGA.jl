@@ -3,11 +3,12 @@
 
 module myGA
 
-	export population,  GAmodel, SuperJuice
+	export population,  GAmodel, SuperJuice, startSuperJuice, rand
 
 	import ExactHistEq.EHEfast3
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
-
+	import Base.rand
+	
 	type population
 		x													::Array{Float32,1}							# population elements
 		N													::Int64													# length of the population
@@ -891,13 +892,11 @@ module myGA
 		outputNumbers								::Function
 		appendNumbers								::Function
 		reloadNumbers								::Function
+		doSuperJuice								::Function
 		
 		function SuperJuice()
 			this =new()
 			this.g = GAmodel(16,512,128)
-			this.g = doSuperJuice(this.g,100)
-			this.buffer = this.g.data[this.g.getBest()[2]].x
-			this.bufferEmpty =false
 			this.N = 0
 			
 			function outputNumbers(N::Int64)
@@ -919,19 +918,72 @@ module myGA
 			end
 			
 			function reloadNumbers()
-				this.g = doSuperJuice(this.g,100)
-				this.buffer = [this.buffer; this.g.data[this.g.getBest()[2]].x]
+				
+				this.buffer = [this.buffer; copy(this.doSuperJuice(this.g,100))]
+			end
+			
+			function doSuperJuice(g::GAmodel, k_stop::Int64)
+				g.evaluateAll();	
+				k = 1
+				#csvfile = open("data.csv","w")
+				while k <= k_stop
+					parentA, parentB = g.rouletteWheelSelection(false);
+					childA, childB = g.orderOneCrossOver_2(parentA, parentB);
+					childA = childA.insertMutation(0.1); childB = childB.insertMutation(0.1);
+					g.muReplacement(Int64(4), Int64(g.N-2) , 10, childA, childB)
+					#g.replaceWorst(Int64(g.N/2),childA,childB)
+					#println("$k \t\t\t best -> $(g.getBest())" )
+					#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
+					#write(csvfile, join(savevec,","), "\n")
+					k+=1;
+				end
+				#println(" k= $k \n g[1] = $(g.data[g.getBest()[2]].x')")
+				#close(csvfile)
+				return g.data[g.getBest()[2]].x
 			end
 			
 			this.outputNumbers = outputNumbers
 			this.appendNumbers = appendNumbers
 			this.reloadNumbers = reloadNumbers
+			this.doSuperJuice = doSuperJuice
+			
+			this.buffer = copy(this.doSuperJuice(this.g,100));
+			this.bufferEmpty =false
+			
 		
 			return this
 		end
 	end
+	
+	function startSuperJuice(SJ::SuperJuice,N::Int64)
+		if length(SJ.buffer)<N
+			SJ.appendNumbers(N)
+		end
+		return SJ.outputNumbers(N)
+	end
 
-	#=
+	# isdefined(:SuperJuice)
+	if method_exists(rand,(myGA.SuperJuice,Int64)) == false  
+		rand(r::SuperJuice,N::Int64) = startSuperJuice(r,N)
+	end
+end
+
+
+
+
+
+#=
+function startSuperJuice(SJ::SuperJuice,N::Int64)
+	if length(SJ.buffer)<N
+		SJ.appendNumbers(N)
+	end
+	return SJ.outputNumbers(N)
+end
+
+
+
+
+
 	function SuperJuice(N::Int64)
 		if N<=512
 			buffer = zeros(Float32,N)
@@ -964,8 +1016,6 @@ module myGA
 		return g;
 	end
 =#
-end
-
 
 
 
