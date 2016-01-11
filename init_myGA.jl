@@ -1,3 +1,3 @@
-push!(LOAD_PATH, pwd()); 
-LOAD_PATH=unique(LOAD_PATH);
-using myGA;
+@everywhere push!(LOAD_PATH, pwd()); 
+@everywhere LOAD_PATH=unique(LOAD_PATH);
+@everywhere using myGA;

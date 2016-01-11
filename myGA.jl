@@ -106,14 +106,14 @@ module myGA
 
 			##################################################################################################################### Functions
 			#.................................................................................................................... Evaluation
-			function evaluate(data::Array{Float32,1})
-				N = length(data)
-				No2 = Int64(N/2)
-				psd = zeros(Float32,No2)
-				psd = ((abs( fft(data) )./No2 )[1:No2]).^2;
-				s = std(psd)
-				return s
-			end
+			# function evaluate(data::Array{Float32,1})
+			# 	N = length(data)
+			# 	No2 = Int64(N/2)
+			# 	psd = zeros(Float32,No2)
+			# 	psd = ((abs( fft(data) )./No2 )[1:No2]).^2;
+			# 	s = std(psd)
+			# 	return s
+			# end
 			function evaluate(ind::Int64)
 				N = length(this.data[ind].x)
 				No2 = Int64(N/2)
@@ -154,13 +154,26 @@ module myGA
 				return [this.data[k].score for k=1:this.N]
 			end
 			
+			# function evaluateAll()
+# 				temp = cell(this.N)
+# 				println( pmap(this.evaluate, [1:(this.N);],  pids=workers() ) )
+# 				#for k=1:(this.N)
+# 				#	this.data[k].score = convert(Float32,temp[k])
+# 				#end
+# 				return temp
+# 			end
+			
 			this.getBest = getBest
 			this.evaluate = evaluate
-			this.evaluateAll = function()
-				for k=1:this.N
-					this.data[k].score= this.evaluate(k)
-				end
-			end	
+			# this.evaluateAll = evaluateAll
+			
+			this.evaluateAll=function()
+							for k=1:this.N
+								this.data[k].score= this.evaluate(k)
+							end
+						end
+			
+			
 			this.repopulateAll = function(exceptID::Int64)
 				for k=1:(this.N)
 					if k!=exceptID
@@ -173,7 +186,7 @@ module myGA
 			#.................................................................................................................... Selection
 			function rouletteWheelSelection(duplicates=true)
 				this.evaluateAll()
-				S = [this.data[k].score for k=1:this.N]
+				S = this.getScores()
 				S = cumsum(S./sum(S))
 				p1_ids = [findfirst(S.>=rand()) for k=1:this.N]
 				p2_ids = [findfirst(S.>=rand()) for k=1:this.N]
@@ -184,11 +197,11 @@ module myGA
 						end
 					end
 				end
-				return p1_ids, p2_ids
+				return convert(Array{Int64,1},p1_ids), convert(Array{Int64,1},p2_ids)
 			end
 			function rankSelection(duplicates=true)
 				this.evaluateAll()
-				S = [this.data[k].score for k=1:this.N]
+				S = this.getScores()
 				Sind = sortperm(S)
 				p1_ids =[ Sind[rand([1:this.N;])] for k=1: this.N]
 				p2_ids =[ Sind[rand([1:this.N;])] for k=1: this.N]
@@ -199,7 +212,7 @@ module myGA
 						end
 					end
 				end
-				return p1_ids, p2_ids
+				return convert(Array{Int64,1},p1_ids), convert(Array{Int64,1},p2_ids)
 			end
 			function tournamentSelection(TournamentSize::Int64, duplicates=true)
 				p1_ids = zeros(Int64,this.N)
@@ -225,7 +238,7 @@ module myGA
 				else
 					println("Tournament Size > number of populations")
 				end
-				return p1_ids, p2_ids
+				return convert(Array{Int64,1},p1_ids), convert(Array{Int64,1},p2_ids)
 			end
 			
 			this.rouletteWheelSelection = rouletteWheelSelection
@@ -923,7 +936,7 @@ module myGA
 			end
 			
 			function doSuperJuice(g::GAmodel, k_stop::Int64)
-				g.evaluateAll();	
+				g.evaluateAll()
 				k = 1
 				#csvfile = open("data.csv","w")
 				while k <= k_stop

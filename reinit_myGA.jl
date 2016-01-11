@@ -1,3 +1,3 @@
-workspace(); 
-reload("myGA"); 
-using  myGA;
+@everywhere workspace(); 
+@everywhere reload("myGA"); 
+@everywhere using myGA;
