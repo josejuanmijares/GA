@@ -84,17 +84,27 @@ export EHE, EHEfast0, EHEfast1, EHEfast2, EHEfast3
 		return xout
 	end
 
-	function EHEfast3(xin,Nbins,typein)
+	function EHEfast3(xin::Array{Float32,1})
+		#Nbins=floor(length(xin) / 2.0 )
+		typein=Float32
+		
 		ind = sortperm(xin)
-		ind2 = zeros(Int64,length(ind))
+		ind2 = zeros(length(ind))
 		[ind2[ind[k]] = k for k=1:length(ind)]
+		
 		l = length(xin)
-		binsize = ceil(log2(l) +1)
-		ratio = l/binsize
-		offset = (1/binsize)* floor( (ind2-1)/ratio)
-		xout = mod(xin,1/binsize) + offset
-		xout = convert(Array{typein,1},xout)
+		binsize = 2								#ceil(log2(l) +1)
+		#ratio =         #l/binsize
+		offset = floor((ind2-1)/binsize)*(binsize/l)			#(1/binsize)* floor( (ind2-1)/ratio)
+		xout = mod(xin,binsize/l) + offset					#mod(xin,1/binsize) + offset
+		#k=hist(xout,[0.0:(binsize/l):1.0;])
+		#println(all(k[2].==2))
+		
+		
+		#xout = convert(Array{typein,1},xout)
 		return xout
 	end
+	
+
 	
 end

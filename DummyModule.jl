@@ -3,7 +3,8 @@ module DummyModule
 	export MyType, f
 
 	type MyType	
-		a::Array{Int64,1}
+		#a::Array{Int64,1}
+		a::SharedArray
 		fu::Function
 		f2::Function
 		
