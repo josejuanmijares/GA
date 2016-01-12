@@ -118,46 +118,22 @@ module myGA2
 				Sd = sdata(S)
 				p1_ind = zeros(Int64,N)
 				p2_ind = zeros(Int64,N)
-				childVec_ind = zeros(Int64,N)
 				childVec = zeros(Float32,N)
 				setindex!(p1_ind,[1:N;], sortperm( Sd[:,p1_id] ))
 				setindex!(p2_ind,[1:N;], sortperm( Sd[:,p2_id] ))
 				ini_Pt = rand([1:(N - 1 );]);
 				end_Pt = rand([(ini_Pt + 1):N;]);
+				childVec[ini_Pt:end_Pt] = Sd[ p1_ind[ini_Pt:end_Pt] ]
 				
-				childVec_ind[ini_Pt:end_Pt] = p1_ind[ini_Pt:end_Pt]
-				lind = end_Pt+1
-				for k=lind:N
-					if any(p2_ind[k].== childVec_ind) == false
-						if lind == (N+1)
-							lind = 1
-						end
-						childVec_ind[lind] = p2_ind[k]
-						lind += 1
-					end
-				end
+
 				
-				for k=1:end_Pt
-					if any(p2_ind[k].== childVec_ind) == false
-						if lind == (N+1)
-							lind = 1
-						end
-						childVec_ind[lind] = p2_ind[k]
-						lind += 1
-					end
-				end
-				childVec = Sd[childVec_ind,p1_id]
-				return childVec
+				
 			end
 			
 			
 			function orderOneCrossOver_2(p1_ids::Array{Int64,1},p2_ids::Array{Int64,1})
 				#child1 = population(this.N,this.M)
 				#child2 = population(this.N,this.M)
-				
-				child1=SharedArray(Float32,(N,M), init=false, pids=workers());
-				child2=SharedArray(Float32,(N,M), init=false, pids=workers());
-				
 				n = length(p1_ids)
 				np = nprocs()
 				i=1
@@ -171,15 +147,13 @@ module myGA2
 									if idx > n
 										break
 									end
-									child1[:,idx] = remotecall_fetch(p, doOrder1X0_2, p1_ids[idx],p2_ids[idx], this.x, this.N)
-									child2[:,idx] = remotecall_fetch(p, doOrder1X0_2, p2_ids[idx],p1_ids[idx], this.x, this.N)
+									remotecall_fetch(p, doOrder1X0_2, p1_ids[idx],p2_ids[idx], this.x, this.N)
 								end
 								#remotecall_fetch(p,doEvaluateAll, this.x, this.scores, this.N,  )
 							end
 						end
 					end
-				end
-				return child1,child2	
+				end	
 			end	
 			
 			this.orderOneCrossOver_2 =orderOneCrossOver_2
