@@ -19,6 +19,10 @@ module myGA2
 		NSamples									::Int64													# total number of samples
 		
 		repopulate								::Function
+		evaluateAll								::Function
+		getBest										::Function
+		getScores									::Function
+		rouletteWheelSelection		::Function
 		
 		function population(N::Int64, M::Int64)
 			this = new()
@@ -53,6 +57,63 @@ module myGA2
 				this.x = SharedArray(Float32,(N,M), init=S->S[localindexes(S)]=rand(length([localindexes(S);])), pids=workers());
 				initRandomNumbers(this.x,this.N)
 			end
+			function doEvaluateAll(S::SharedArray{Float32,2}, S2::SharedArray{Float32,1},  N::Int64)
+				ind = localindexes(S)
+				Sd = sdata(S)
+				ind2 = localindexes(S2)
+				Ss = sdata(S2)
+				No2 = Int64(N/2)
+				j= ind2.start
+				for i=(ind.start):N:((ind.stop))
+					psd = zeros(Float32,No2)
+					psd = ((abs( fft(Sd[i:(i+N-1)]) )./No2 )[1:No2]).^2;
+					Ss[j] = std(psd)
+					j+=1
+				end
+			end	
+			function evaluateAll()
+				np = nprocs() 
+				@sync begin
+					for p=1:np
+						if p != myid() || np == 1
+							@async begin
+								remotecall_fetch(p,doEvaluateAll, this.x, this.scores, this.N )
+							end
+						end
+					end
+				end	
+			end	
+			this.evaluateAll = evaluateAll
+			
+			function getBest()
+				return findmin(this.scores)
+			end
+			function getScores()
+				return sdata(this.scores)
+			end
+			
+			this.getBest = getBest
+			this.getScores =getScores
+			
+			function rouletteWheelSelection(duplicates=true)
+				this.evaluateAll()
+				S = this.getScores()
+				S = cumsum(S./sum(S))
+				p1_ids = [findfirst(S.>=rand()) for k=1:this.N]
+				p2_ids = [findfirst(S.>=rand()) for k=1:this.N]
+				if !(duplicates)
+					for k=1:this.N
+						while p1_ids[k] == p2_ids[k]
+							p2_ids[k] = findfirst(S.>=rand())
+						end
+					end
+				end
+				return convert(Array{Int64,1},p1_ids), convert(Array{Int64,1},p2_ids)
+			end
+			
+			this.rouletteWheelSelection = rouletteWheelSelection
+			
+			
 			return this
 		end
 		function population(x::Array{Float32,1})
@@ -68,6 +129,33 @@ module myGA2
 		end
 	end
 	
+	# type GAmodel
+# 		data											::population
+#
+# 		evaluate									::Function
+#
+# 		function GAmodel(N::Int64, M::Int64)
+# 			this = new()
+# 																																# initialization
+# 			this.data = population(N,M)
+#
+# 			##################################################################################################################### Functions
+# 			#.................................................................................................................... Evaluation
+# 			function evaluate(ind::Int64)
+# 				N = length(this.data.N)
+# 				No2 = Int64(N/2)
+# 				psd = zeros(Float32,No2)
+# 				data = this.data.x[:,ind]
+# 				psd = ((abs( fft(data) )./No2 )[1:No2]).^2;
+# 				s = std(psd)
+# 				#this.data[ind].score = s
+# 				return s
+# 			end
+# 			return this
+# 		end
+#
+#
+# 	end
 	
 	
 	
