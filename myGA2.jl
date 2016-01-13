@@ -24,6 +24,8 @@ module myGA2
 		getScores									::Function
 		rouletteWheelSelection		::Function
 		orderOneCrossOver_2				::Function
+		insertMutation						::Function
+		muReplacement							::Function
 		
 		function population(N::Int64, M::Int64)
 			this = new()
@@ -84,9 +86,22 @@ module myGA2
 					end
 				end	
 			end	
+			function evaluateAll(S::SharedArray{Float32,2}, scores::SharedArray{Float32,1})
+				np = nprocs() 
+				@sync begin
+					for p=1:np
+						if p != myid() || np == 1
+							@async begin
+								remotecall_fetch(p,doEvaluateAll, S, scores, this.N )
+							end
+						end
+					end
+				end
+			end
 			this.evaluateAll = evaluateAll
 			
 			function getBest()
+				this.evaluateAll()
 				return findmin(this.scores)
 			end
 			function getScores()
@@ -111,9 +126,7 @@ module myGA2
 				end
 				return convert(Array{Int64,1},p1_ids), convert(Array{Int64,1},p2_ids)
 			end
-			
 			this.rouletteWheelSelection = rouletteWheelSelection
-			
 			function doOrder1X0_2(p1_id::Int64,p2_id::Int64, S::SharedArray{Float32,2}, N::Int64)
 				Sd = sdata(S)
 				p1_ind = zeros(Int64,N)
@@ -149,8 +162,6 @@ module myGA2
 				childVec = Sd[childVec_ind,p1_id]
 				return childVec
 			end
-			
-			
 			function orderOneCrossOver_2(p1_ids::Array{Int64,1},p2_ids::Array{Int64,1})
 				#child1 = population(this.N,this.M)
 				#child2 = population(this.N,this.M)
@@ -180,81 +191,103 @@ module myGA2
 					end
 				end
 				return child1,child2	
-			end	
-			
+			end				
 			this.orderOneCrossOver_2 =orderOneCrossOver_2
 			
 			
+			function doInsertMutation(child1::SharedArray{Float32,2}, idx::Int64, N::Int64,prob_mutation::Float64)
+				Sd = sdata(child1)
+				temp = copy(Sd[:,idx])
+				if rand()<= prob_mutation
+					pos1 = rand([1:(N - 2);])
+					pos2 = rand([pos1+2:N;])
+					insert!(temp, pos1, splice!(temp,pos2))
+					#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
+					#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
+				end
+				Sd[:,idx]=temp
+			end
+			function insertMutation(prob_mutation::Float64, child1::SharedArray{Float32,2}, child2::SharedArray{Float32,2})
+				np = nprocs()
+				i=1
+				nextidx() = (idx=i; i+=1; idx)
+				@sync begin
+					for p=1:np
+						if p != myid() || np == 1
+							@async begin
+								while true
+								idx = nextidx()
+									if idx > this.M
+										break
+									end
+									child1[:,idx] = remotecall_fetch(p, doInsertMutation, child1, idx, this.N, prob_mutation)
+									child2[:,idx] = remotecall_fetch(p, doInsertMutation, child2, idx, this.N, prob_mutation)
+								end
+								#remotecall_fetch(p,doEvaluateAll, this.x, this.scores, this.N,  )
+							end
+						end
+					end
+				end
+			end
+			this.insertMutation = insertMutation
 			
-			
-			# 			function order1XO_2(p1_ind::Array{Int64,1},p2_ind::Array{Int64,1}, p1::Array{Float32,1}, p2::Array{Float32,1})
-			#
-			# 				N = length(p1_ind)
-			#
-			# 				ini_Pt = rand([1:(N - 1 );]);
-			# 				end_Pt = rand([(ini_Pt + 1):N;]);
-			# 				childVec= zeros(Float32,N)
-			# 				childVec_ind = zeros(Int64, N)
-			# 				#p1_ind = [find(p1[k].== p1[ind1])[1] for k=1:length(p1)];
-			# 				#p2_ind = [find(p2[k].== p2[ind2])[1] for k=1:length(p2)];
-			#
-			# 				childVec_ind[ini_Pt:end_Pt] = p1_ind[ini_Pt:end_Pt]
-			#
-			# 				#println("p1_ind = $(p1_ind')")
-			# 				#println("childVec_ind = $(childVec_ind')")
-			# 				lind = end_Pt+1
-			# 				for k=lind:N
-			# 					if any(p2_ind[k].== childVec_ind) == false
-			# 						if lind == (N+1)
-			# 							lind = 1
-			# 						end
-			# 						childVec_ind[lind] = p2_ind[k]
-			# 						lind += 1
-			# 					end
-			# 				end
-			# 				#println("childVec_ind = $(childVec_ind')")
-			# 				for k=1:end_Pt
-			# 					if any(p2_ind[k].== childVec_ind) == false
-			# 						if lind == (N+1)
-			# 							lind = 1
-			# 						end
-			# 						childVec_ind[lind] = p2_ind[k]
-			# 						lind += 1
-			# 					end
-			# 				end
-			# 				#println("childVec_ind = $(childVec_ind')")
-			# 				childVec = p1[childVec_ind]
-			# 				return childVec
-			# 			end
+			function muReplacement(mu::Int64, mu2::Int64 , qTournaments::Int64, child1::SharedArray{Float32,2}, child2::SharedArray{Float32,2})
+				M = this.M
+				N = this.N
+				twoN = 2*M
+				
+				this.evaluateAll()
+				c1_scores = SharedArray(Float32, M, init= S2->S2[localindexes(S2)]=zeros(Float32,length([localindexes(S2);])), pids=workers());
+				c2_scores = SharedArray(Float32, M, init= S2->S2[localindexes(S2)]=zeros(Float32,length([localindexes(S2);])), pids=workers());
+				p = population(N,M);
+				this.evaluateAll(child1,c1_scores)
+				this.evaluateAll(child2,c2_scores)
+				
+				scores0 = [ sdata(c1_scores); sdata(c2_scores) ]
+				
+				indexes = [1:twoN;]
+				c = shuffle(indexes)
 
-				# for k=1:this.N
-				# 	p1_ind = p1_ids[k]
-				# 	p2_ind = p2_ids[k]
-				# 	p1 = this.data[p1_ind].x
-				# 	p2 = this.data[p2_ind].x
-				# 	ind1 = sortperm(p1)
-				# 	ind2 = sortperm(p2)
-				#
-				#
-				# 	ind1_inv = zeros(Int64,length(ind1))
-				# 	ind2_inv = zeros(Int64,length(ind2))
-				#
-				# 	setindex!(ind1_inv,[1:length(ind1);],ind1)
-				# 	setindex!(ind2_inv,[1:length(ind1);],ind2)
-				#
-				# 	child1.data[k].x = order1XO_2(ind1_inv,ind2_inv, p1, p2)
-				# 	child2.data[k].x = order1XO_2(ind2_inv,ind1_inv, p2, p1)
-				#
-				# end
-				#return child1,child2
-				#end
+				wins = zeros(Int64,twoN)
+				scores = zeros(twoN)
+				scores = scores0[c]
 
-			
-			
-			
-			
-			
-			
+				ct1 = c
+				ct2 = circshift(ct1,1)
+				for t=1:qTournaments
+					for qind =1:length(c)
+						ind1 = ct1[qind]
+						ind2 = ct2[qind]
+						if scores[ind1] >= scores[ind2]
+							wins[ind1] += 1
+						else
+							wins[ind2] += 1
+						end
+					end
+					ct2 = circshift(ct2,1)
+				end
+
+				wins_ind = sortperm(wins,rev=true)
+				scores = this.getScores()
+				scores_ind = sortperm(scores,rev=true)
+
+				for k=1:mu
+					t = Int64(floor(wins_ind[k]/(this.N)))
+					i = wins_ind[k]- this.N*t
+					ki = scores_ind[k]
+					if t==0
+						this.x[:,ki] = child1[:,i]
+					end
+					if t==1
+						this.x[:,ki] = child2[:,i]
+					end
+				end
+				for k=(mu+1):mu2
+					ki = scores_ind[k]
+					this.x[:,ki] = p.x[:,k]
+				end
+			end
+			this.muReplacement=muReplacement
 			
 			return this
 		end
