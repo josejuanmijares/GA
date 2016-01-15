@@ -11,7 +11,7 @@ module myGA2
 	import Goertzel_functions.goertzel, Goertzel_functions.online_variance
 	import Base.rand
 	
-	defaultSize = Int64(4096)
+	defaultSize = Int64(2^10)
 	
 	type population
 		x													::SharedArray{Float32,2}				# population elements
@@ -28,6 +28,7 @@ module myGA2
 		orderOneCrossOver_2				::Function
 		insertMutation						::Function
 		muReplacement							::Function
+		shuffleGA									::Function
 		
 		function population(N::Int64, M::Int64)
 			this = new()
@@ -62,6 +63,16 @@ module myGA2
 				this.x = SharedArray(Float32,(N,M), init=S->S[localindexes(S)]=rand(length([localindexes(S);])), pids=workers());
 				initRandomNumbers(this.x,this.N)
 			end
+			
+			function evaluate(S::Array{Float32,1})
+				N = length(S)
+				No2 = Int64(N/2)
+				psd = zeros(Float32,No2+1)
+				psd = (1/N)*( abs( fft(S)[1:No2] ) .^2)
+				return std(psd)
+			end
+				
+			
 			function doEvaluateAll(S::SharedArray{Float32,2}, S2::SharedArray{Float32,1},  N::Int64)
 				ind = localindexes(S)
 				Sd = sdata(S)
@@ -70,16 +81,19 @@ module myGA2
 				No2 = Int64(N/2)
 				j= ind2.start
 				for i=(ind.start):N:((ind.stop))
-					psd = zeros(Float32,No2)
-					psd = ((abs( fft(Sd[i:(i+N-1)]) )./No2 )[1:No2]).^2;
-					Ss[j] = std(psd)
+					psd = zeros(Float32,No2+1)
+					psd = (1/N)*( abs( fft(Sd[i:(i+N-1)] )[1:No2] ) .^2)
+					#psd = ((abs( fft(Sd[i:(i+N-1)]) )./No2 )[1:No2]).^2;
+					#println("mean=$(mean(psd) ) \t  std=$(std(psd))")
+					#Ss[j] =  sqrt((mean(psd) -1 )^2  + (std(psd))^2)
+					Ss[j] =  std(psd)
 					j+=1
 				end
 			end	
 			function evaluateAll()
 				np = nprocs() 
 				@sync begin
-					for p=1:np
+					for p=1:nthis.M
 						if p != myid() || np == 1
 							@async begin
 								remotecall_fetch(p,doEvaluateAll, this.x, this.scores, this.N )
@@ -91,7 +105,7 @@ module myGA2
 			function evaluateAll(S::SharedArray{Float32,2}, scores::SharedArray{Float32,1})
 				np = nprocs() 
 				@sync begin
-					for p=1:np
+					for p=1:this.M
 						if p != myid() || np == 1
 							@async begin
 								remotecall_fetch(p,doEvaluateAll, S, scores, this.N )
@@ -201,9 +215,12 @@ module myGA2
 				Sd = sdata(child1)
 				temp = copy(Sd[:,idx])
 				if rand()<= prob_mutation
-					pos1 = rand([1:(N - 2);])
-					pos2 = rand([pos1+2:N;])
-					insert!(temp, pos1, splice!(temp,pos2))
+					
+					temp = shuffle(temp)
+					
+					# pos1 = rand([1:(N - 2);])
+	# 				pos2 = rand([pos1+2:N;])
+	# 				insert!(temp, pos1, splice!(temp,pos2))
 					#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
 					#println("p1 = $(p1)	\t pos1 = $(pos1) \t pos2 = $(pos2) ")
 				end
@@ -222,8 +239,8 @@ module myGA2
 									if idx > this.M
 										break
 									end
-									child1[:,idx] = remotecall_fetch(p, doInsertMutation, child1, idx, this.N, prob_mutation)
-									child2[:,idx] = remotecall_fetch(p, doInsertMutation, child2, idx, this.N, prob_mutation)
+									remotecall_fetch(p, doInsertMutation, child1, idx, this.N, prob_mutation)
+									remotecall_fetch(p, doInsertMutation, child2, idx, this.N, prob_mutation)
 								end
 								#remotecall_fetch(p,doEvaluateAll, this.x, this.scores, this.N,  )
 							end
@@ -290,6 +307,9 @@ module myGA2
 			end
 			this.muReplacement=muReplacement
 			
+			
+
+			
 			return this
 		end
 		function population(x::Array{Float32,1})
@@ -334,6 +354,7 @@ module myGA2
 			end
 
 			function appendNumbers(N::Int64)
+				
 				while length(this.buffer) < N
 					this.reloadNumbers()
 				end
@@ -342,7 +363,7 @@ module myGA2
 
 			function reloadNumbers()
 
-				this.buffer = [this.buffer; copy(this.doSuperJuice(this.g,100))]
+				this.buffer = [this.buffer; copy(this.doSuperJuice(this.g,10000))]
 			end
 
 			function doSuperJuice(g::population, k_stop::Int64)
@@ -353,11 +374,11 @@ module myGA2
 					parentA, parentB = g.rouletteWheelSelection(false);
 					#println("$k \t\t\t scores -> $(g.getScores())" )
 					childA, childB = g.orderOneCrossOver_2(parentA, parentB);
-					g.insertMutation(0.1, childA, childB)
-					g.muReplacement(Int64(1), Int64(g.M-1), 10, childA, childB)
+					g.insertMutation(1.0, childA, childB)
+					g.muReplacement(Int64(g.M/4), Int64(g.M/2), 10, childA, childB)
 					#g.replaceWorst(Int64(g.N/2),childA,childB)
 					#println("$k \t\t\t scores -> $(g.getScores())" )
-					#println("$k \t\t\t best -> $(g.getBest())" )
+					println("$k \t\t\t best -> $(g.getBest())" )
 					#println("-----------------------------------------------------------------------------------------------------------")
 					#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
 					#write(csvfile, join(savevec,","), "\n")
@@ -373,7 +394,7 @@ module myGA2
 			this.reloadNumbers = reloadNumbers
 			this.doSuperJuice = doSuperJuice
 
-			this.buffer = copy(this.doSuperJuice(this.g,100));
+			@time this.buffer = copy(this.doSuperJuice(this.g,10000));
 
 			return this
 		end
