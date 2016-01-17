@@ -43,6 +43,7 @@ module myGA3
 				end
 
 				child = SharedArray(T,(N,M))
+				child_scores = SharedArray(T,M)
 				i=1 ; nextidx() = (idx=i; i+=1; idx)
 				p=-1
 				@sync begin
@@ -54,7 +55,7 @@ module myGA3
 									if idx > this.M
 										break
 									end
-									remotecall_wait(p, doSuperJuice, this.x, this.scores, child, N, M, idx, iter)
+									remotecall_wait(p, doSuperJuice, this.x, this.scores, child, child_scores, N, M, idx, iter)
 								end
 							end
 						end
@@ -119,64 +120,64 @@ module myGA3
 		end
 	end
 
-	function muReplacement{T}(mu::Int64, mu2::Int64 , qTournaments::Int64, child1::SharedArray{T,2}, N::Int64, M::Int64)
-		twoN = 2*M
-		c1_scores = SharedArray(Float32, M, init= S2->S2[localindexes(S2)]=zeros(Float32,length([localindexes(S2);])), pids=workers());
-		p = population(N,M);
-		this.evaluateAll(child1,c1_scores)
-
-		scores0 = [ sdata(c1_scores); sdata(c2_scores) ]
-
-		indexes = [1:twoN;]
-		c = shuffle(indexes)
-
-		wins = zeros(Int64,twoN)
-		scores = zeros(twoN)
-		scores = scores0[c]
-
-		ct1 = c
-		ct2 = circshift(ct1,1)
-		for t=1:qTournaments
-			for qind =1:length(c)
-				ind1 = ct1[qind]
-				ind2 = ct2[qind]
-				if scores[ind1] >= scores[ind2]
-					wins[ind1] += 1
-				else
-					wins[ind2] += 1
-				end
-			end
-			ct2 = circshift(ct2,1)
-		end
-
-		wins_ind = sortperm(wins,rev=true)
-		scores = this.getScores()
-		scores_ind = sortperm(scores,rev=true)
-
-		for k=1:mu
-			i = c[wins_ind[k]]
-			ki = scores_ind[k]
-			if i <= M
-				this.x[:,ki] = child1[:,i]
-			else
-				i = i - M
-				this.x[:,ki] = child2[:,i]
-			end
-		end
-		for k=(mu+1):mu2
-			ki = scores_ind[k]
-			this.x[:,ki] = p.x[:,k]
-		end
-	end
-
-
+	# function muReplacement{T}(mu::Int64, mu2::Int64 , qTournaments::Int64, child1::SharedArray{T,2}, N::Int64, M::Int64)
+# 		twoN = 2*M
+# 		c1_scores = SharedArray(Float32, M, init= S2->S2[localindexes(S2)]=zeros(Float32,length([localindexes(S2);])), pids=workers());
+# 		p = population(N,M);
+# 		this.evaluateAll(child1,c1_scores)
+#
+# 		scores0 = [ sdata(c1_scores); sdata(c2_scores) ]
+#
+# 		indexes = [1:twoN;]
+# 		c = shuffle(indexes)
+#
+# 		wins = zeros(Int64,twoN)
+# 		scores = zeros(twoN)
+# 		scores = scores0[c]
+#
+# 		ct1 = c
+# 		ct2 = circshift(ct1,1)
+# 		for t=1:qTournaments
+# 			for qind =1:length(c)
+# 				ind1 = ct1[qind]
+# 				ind2 = ct2[qind]
+# 				if scores[ind1] >= scores[ind2]
+# 					wins[ind1] += 1
+# 				else
+# 					wins[ind2] += 1
+# 				end
+# 			end
+# 			ct2 = circshift(ct2,1)
+# 		end
+#
+# 		wins_ind = sortperm(wins,rev=true)
+# 		scores = this.getScores()
+# 		scores_ind = sortperm(scores,rev=true)
+#
+# 		for k=1:mu
+# 			i = c[wins_ind[k]]
+# 			ki = scores_ind[k]
+# 			if i <= M
+# 				this.x[:,ki] = child1[:,i]
+# 			else
+# 				i = i - M
+# 				this.x[:,ki] = child2[:,i]
+# 			end
+# 		end
+# 		for k=(mu+1):mu2
+# 			ki = scores_ind[k]
+# 			this.x[:,ki] = p.x[:,k]
+# 		end
+# 	end
 
 
 
 
 
 
-	function doSuperJuice{T}(x::SharedArray{T,2}, scores::SharedArray{T,1}, child::SharedArray{T,2}, N::Int64, M::Int64,idx::Int64, k_stop::Int64)
+
+
+	function doSuperJuice{T}(x::SharedArray{T,2}, scores::SharedArray{T,1}, child::SharedArray{T,2}, child_scores::SharedArray{T,1},N::Int64, M::Int64,idx::Int64, k_stop::Int64)
 		
 		p1_id :: Int64
 		p2_id :: Int64
@@ -184,6 +185,7 @@ module myGA3
 		p1_id, p2_id = doRouletteWheelSelection(cumsum(scores./sum(scores)))
 		doOrder1X0_2(p1_id,p2_id,x,N,child,idx)
 		doShuffleMutation(child,idx,N,0.1)
+		doEvaluateAll(child,child_scores,N,idx)
 		
 		
 	end
