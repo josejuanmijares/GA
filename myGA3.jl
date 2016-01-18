@@ -1,19 +1,15 @@
-
 module myGA3
-	using Compat
-
-	export SuperJuice
-
-	@compat typealias TestableNumbers Union{Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Float16, Float32, Float64}
 	
-	type SuperJuice{T<:TestableNumbers}
+	export SuperJuice, getSuperJuice
+
+	type SuperJuice{T<:Number}
 		x													::SharedArray{T,2}							# population elements
 		N													::Int64													# length of the population
 		M													::Int64													# Number of populations
 		scores										::SharedArray{T,1}							# fitness
 		NSamples									::Int64													# total number of samples
 	
-		function SuperJuice(N::Int64 = 1024, M::Int64 = 8, iter = 100, mypids = workers())
+		function SuperJuice(N::Int64 = 1024, M::Int64 = 8, iter_stop = 100, mypids = workers())
 			this = new()
 			this.N = N
 			this.M = M
@@ -41,28 +37,39 @@ module myGA3
 						end
 					end
 				end
-
+				#println(findmin(this.scores))
 				child = SharedArray(T,(N,M))
 				child_scores = SharedArray(T,M)
-				i=1 ; nextidx() = (idx=i; i+=1; idx)
-				p=-1
-				@sync begin
-					for p in mypids
-						if p != myid() || np == 1
-							@async begin
-								while true
-									idx = nextidx()
-									if idx > this.M
-										break
+				new_child = SharedArray(T,(N,M))
+				new_child_scores = SharedArray(T,M)
+				for k =1:iter_stop
+					## GA loop 
+					i=1 ; nextidx() = (idx=i; i+=1; idx)
+					p=-1
+					@sync begin
+						for p in mypids
+							if p != myid() || np == 1
+								@async begin
+									while true
+										idx = nextidx()
+										if idx > this.M
+											break
+										end
+										remotecall_wait(p, doSuperJuice, this.x, this.scores, child, child_scores, new_child, new_child_scores, N, idx)
 									end
-									remotecall_wait(p, doSuperJuice, this.x, this.scores, child, child_scores, N, M, idx, iter)
 								end
 							end
 						end
 					end
+					## Replacement & evaluation
+					muReplacement(Int64(M/4), Int64(M/2), 10, this.x, this.scores,child, child_scores, new_child, new_child_scores, M)
+					#println("k=$k    $(findmin(this.scores))")
 				end
 			end
-			return this
+			
+			bestid = findmin(this.scores)[2]
+			
+			return this.x[:,bestid]
 		end	
 	end
 	
@@ -99,7 +106,6 @@ module myGA3
 		end
 		return p1_id, p2_id
 	end
-
 	function doOrder1X0_2{T}(p1_id::Int64,p2_id::Int64, S::SharedArray{T,2}, N::Int64, childVec::SharedArray{T,2}, idx::Int64)
 		p1_ind = shuffle([1:N;])
 		p2_ind = shuffle([1:N;])
@@ -113,111 +119,66 @@ module myGA3
 		childVec_ind = [A0; A1; A2]
 		childVec[:,idx] = S[ childVec_ind, p1_id ]
 	end
-
 	function doShuffleMutation{T}(child1::SharedArray{T,2}, idx::Int64, N::Int64, prob_mutation::Float64)
-		if rand(Float64,1)<= prob_mutation
+		if rand()<= prob_mutation
 			child1[:,idx] = shuffle(child1[:,idx])
 		end
 	end
 
-	# function muReplacement{T}(mu::Int64, mu2::Int64 , qTournaments::Int64, child1::SharedArray{T,2}, N::Int64, M::Int64)
-# 		twoN = 2*M
-# 		c1_scores = SharedArray(Float32, M, init= S2->S2[localindexes(S2)]=zeros(Float32,length([localindexes(S2);])), pids=workers());
-# 		p = population(N,M);
-# 		this.evaluateAll(child1,c1_scores)
-#
-# 		scores0 = [ sdata(c1_scores); sdata(c2_scores) ]
-#
-# 		indexes = [1:twoN;]
-# 		c = shuffle(indexes)
-#
-# 		wins = zeros(Int64,twoN)
-# 		scores = zeros(twoN)
-# 		scores = scores0[c]
-#
-# 		ct1 = c
-# 		ct2 = circshift(ct1,1)
-# 		for t=1:qTournaments
-# 			for qind =1:length(c)
-# 				ind1 = ct1[qind]
-# 				ind2 = ct2[qind]
-# 				if scores[ind1] >= scores[ind2]
-# 					wins[ind1] += 1
-# 				else
-# 					wins[ind2] += 1
-# 				end
-# 			end
-# 			ct2 = circshift(ct2,1)
-# 		end
-#
-# 		wins_ind = sortperm(wins,rev=true)
-# 		scores = this.getScores()
-# 		scores_ind = sortperm(scores,rev=true)
-#
-# 		for k=1:mu
-# 			i = c[wins_ind[k]]
-# 			ki = scores_ind[k]
-# 			if i <= M
-# 				this.x[:,ki] = child1[:,i]
-# 			else
-# 				i = i - M
-# 				this.x[:,ki] = child2[:,i]
-# 			end
-# 		end
-# 		for k=(mu+1):mu2
-# 			ki = scores_ind[k]
-# 			this.x[:,ki] = p.x[:,k]
-# 		end
-# 	end
+	function muReplacement{T}(mu::Int64, mu2::Int64 , qTournaments::Int64, parent::SharedArray{T,2}, parent_scores::SharedArray{T,1},child::SharedArray{T,2}, child_scores::SharedArray{T,1}, new_child::SharedArray{T,2}, new_child_scores::SharedArray{T,1}, M::Int64)
+		indexes = shuffle([1:M;])
+		ct1 = indexes
+		ct2 = circshift(ct1,1)
+		wins = zeros(Int64,M)
+		for t=1:qTournaments
+			for qind=1:M
+				ind1 = ct1[qind]; ind2 = ct2[qind];
+				if child_scores[ind1] >child_scores[ind2]
+					wins[ind2] += 1
+				else
+					wins[ind1] += 1
+				end
+			end
+			ct2 = circshift(ct2,1)
+		end
+		wins_ind = sortperm(wins,rev=true)
+		parent_scores_ind = sortperm(parent_scores, rev=true)
+		new_child_scores_ind = sortperm(new_child_scores)
+		for i = 1:mu
+			parentID = parent_scores_ind[i]
+			childID = wins_ind[i]
+			parent[:,parentID] = child[:,childID]
+			parent_scores[parentID] = child_scores[childID]
+		end
+		for i = (mu+1):mu2
+			parentID = parent_scores_ind[i]
+			newchildID = new_child_scores_ind[i]
+			parent[:,parentID] = new_child[:,newchildID]
+			parent_scores[parentID] = new_child_scores[newchildID]
+		end
+	end
 
-
-
-
-
-
-
-
-	function doSuperJuice{T}(x::SharedArray{T,2}, scores::SharedArray{T,1}, child::SharedArray{T,2}, child_scores::SharedArray{T,1},N::Int64, M::Int64,idx::Int64, k_stop::Int64)
-		
+	function doSuperJuice{T}(x::SharedArray{T,2}, scores::SharedArray{T,1}, child::SharedArray{T,2}, child_scores::SharedArray{T,1}, new_child::SharedArray{T,2}, new_child_scores::SharedArray{T,1},N::Int64,idx::Int64)
 		p1_id :: Int64
 		p2_id :: Int64
-		#doEvaluateAll(x,scores,N,idx)
 		p1_id, p2_id = doRouletteWheelSelection(cumsum(scores./sum(scores)))
-		doOrder1X0_2(p1_id,p2_id,x,N,child,idx)
-		doShuffleMutation(child,idx,N,0.1)
-		doEvaluateAll(child,child_scores,N,idx)
-		
-		
+		doOrder1X0_2(p1_id, p2_id, x, N, child, idx)
+		doShuffleMutation(child, idx, N, 0.1)
+		doEvaluateAll(child, child_scores, N, idx)
+		new_child[:,idx] = rand(T, N)
+		EHEfast_0to1(new_child, N, idx)
+		doEvaluateAll(new_child, new_child_scores, N, idx)
 	end
+
+	function getSuperJuice(typ::Type,N::Int64)
+		out1 = [SuperJuice{typ}()' for i in [1:1024:N;]]
+		out = [i for i in hcat(out1...)]
+		return out[1:N]
+	end
+
 
 end
 
-
-
-# 		println("scores[$(idx)] = $(scores[idx])")
-#
-# #			k = 1
-# # 		#csvfile = open("data.csv","w")
-# # 		while k <= k_stop
-# # 			parentA, parentB = g.rouletteWheelSelection(false);
-# # 			#println("$k \t\t\t scores -> $(g.getScores())" )
-# # 			childA, childB = g.orderOneCrossOver_2(parentA, parentB);
-# # 			g.shuffleMutation(1.0, childA, childB)
-# # 			g.muReplacement(Int64(g.M/4), Int64(g.M/2), 10, childA, childB)
-# # 			#g.replaceWorst(Int64(g.N/2),childA,childB)
-# # 			#println("$k \t\t\t scores -> $(g.getScores())" )
-# # 			#println("$k \t\t\t best -> $(g.getBest())" )
-# # 			#println("-----------------------------------------------------------------------------------------------------------")
-# # 			#savevec = [k; g.getBest()[1]; g.getBest()[2]; g.getScores()]
-# # 			#write(csvfile, join(savevec,","), "\n")
-# # 			k+=1;
-# # 		end
-# # 		#println(" k= $k \n g[1] = $(g.data[g.getBest()[2]].x')")
-# # 		#close(csvfile)
-# # 		return g.x[:, g.getBest()[2]]
-# 	end
-#
-#
 ################################################
 		#
 		# 		function outputNumbers(N::Int64)
